@@ -1,18 +1,175 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+// ============================================
+// USER SCHEMAS
+// ============================================
+
+export const userSchema = z.object({
+  id: z.number(),
+  email: z.string().email().nullable(),
+  password: z.string().nullable(),
+  telegram_id: z.number().nullable(),
+  telegram_username: z.string().nullable(),
+  subscription_type: z.string().nullable(),
+  expires_at: z.string().nullable(),
+  referrer_id: z.number().nullable(),
+  referral_balance: z.number().default(0),
+  main_balance: z.number().default(0),
+  has_used_trial: z.number().default(0),
+  created_at: z.string(),
+  is_admin: z.number().default(0),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+export const insertUserSchema = userSchema.omit({ 
+  id: true, 
+  created_at: true 
+}).partial();
+
+export const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
 });
 
+export const registerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  telegram_id: z.number().optional(),
+});
+
+export type User = z.infer<typeof userSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export type LoginData = z.infer<typeof loginSchema>;
+export type RegisterData = z.infer<typeof registerSchema>;
+
+// ============================================
+// SERVER SCHEMAS
+// ============================================
+
+export const serverSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  panel_url: z.string().url(),
+  panel_username: z.string(),
+  panel_password: z.string(),
+  vless_address: z.string(),
+  vless_port: z.number(),
+  vless_inbound_id: z.number(),
+  vless_sni: z.string(),
+  vless_flow: z.string(),
+  vless_public_key: z.string(),
+  vless_short_id: z.string(),
+  is_active: z.number().default(1),
+});
+
+export const insertServerSchema = serverSchema.omit({ id: true });
+
+export type Server = z.infer<typeof serverSchema>;
+export type InsertServer = z.infer<typeof insertServerSchema>;
+
+// ============================================
+// VPN PROFILE SCHEMAS
+// ============================================
+
+export const vpnProfileSchema = z.object({
+  id: z.number(),
+  assigned_to_user_id: z.number(),
+  server_id: z.number(),
+  config_link: z.string(),
+  client_uuid: z.string(),
+  inbound_id: z.number(),
+  created_at: z.string(),
+});
+
+export const insertVpnProfileSchema = vpnProfileSchema.omit({ 
+  id: true, 
+  created_at: true 
+});
+
+export type VpnProfile = z.infer<typeof vpnProfileSchema>;
+export type InsertVpnProfile = z.infer<typeof insertVpnProfileSchema>;
+
+// ============================================
+// TARIFF SCHEMAS
+// ============================================
+
+export const tariffSchema = z.object({
+  id: z.number(),
+  key: z.string(),
+  name: z.string(),
+  price: z.number(),
+  days: z.number(),
+  gb: z.number(),
+  is_active: z.number().default(1),
+});
+
+export const insertTariffSchema = tariffSchema.omit({ id: true });
+
+export type Tariff = z.infer<typeof tariffSchema>;
+export type InsertTariff = z.infer<typeof insertTariffSchema>;
+
+// ============================================
+// PROMOCODE SCHEMAS
+// ============================================
+
+export const promocodeSchema = z.object({
+  code: z.string(),
+  discount_percent: z.number().min(1).max(100),
+  max_uses: z.number(),
+  uses_count: z.number().default(0),
+  is_active: z.number().default(1),
+});
+
+export const insertPromocodeSchema = promocodeSchema.omit({ uses_count: true });
+
+export type Promocode = z.infer<typeof promocodeSchema>;
+export type InsertPromocode = z.infer<typeof insertPromocodeSchema>;
+
+// ============================================
+// TRANSACTION SCHEMAS
+// ============================================
+
+export const transactionSchema = z.object({
+  id: z.number(),
+  user_id: z.number(),
+  type: z.enum(['purchase', 'deposit', 'referral_bonus', 'admin_credit']),
+  amount: z.number(),
+  description: z.string(),
+  created_at: z.string(),
+});
+
+export const insertTransactionSchema = transactionSchema.omit({ 
+  id: true, 
+  created_at: true 
+});
+
+export type Transaction = z.infer<typeof transactionSchema>;
+export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
+
+// ============================================
+// REFERRAL SCHEMAS
+// ============================================
+
+export const referralSchema = z.object({
+  id: z.number(),
+  referrer_id: z.number(),
+  referred_id: z.number(),
+  bonus_earned: z.number().default(0),
+  created_at: z.string(),
+});
+
+export type Referral = z.infer<typeof referralSchema>;
+
+// ============================================
+// STATISTICS SCHEMAS
+// ============================================
+
+export const statsSchema = z.object({
+  total_users: z.number(),
+  active_subscriptions: z.number(),
+  total_revenue: z.number(),
+  active_servers: z.number(),
+  new_users_today: z.number(),
+  revenue_today: z.number(),
+});
+
+export type Stats = z.infer<typeof statsSchema>;
