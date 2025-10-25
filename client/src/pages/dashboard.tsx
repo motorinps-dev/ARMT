@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Wallet,
@@ -17,9 +17,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { User, VpnProfile, Tariff, Referral, Transaction } from "@shared/schema";
 
 export default function Dashboard() {
@@ -27,6 +30,8 @@ export default function Dashboard() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"overview" | "balance" | "referrals" | "settings">("overview");
   const [copiedConfig, setCopiedConfig] = useState(false);
+  const [depositDialogOpen, setDepositDialogOpen] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("");
 
   const { data: user, isLoading: userLoading } = useQuery<User>({
     queryKey: ["/api/user/me"],
@@ -50,6 +55,42 @@ export default function Dashboard() {
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     setLocation("/login");
+  };
+
+  const depositMutation = useMutation({
+    mutationFn: async (amount: number) => {
+      return apiRequest("POST", "/api/balance/deposit", { amount });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      toast({
+        title: "Баланс пополнен",
+        description: "Средства успешно зачислены на ваш счёт",
+      });
+      setDepositDialogOpen(false);
+      setDepositAmount("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось пополнить баланс",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeposit = () => {
+    const amount = parseFloat(depositAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Ошибка",
+        description: "Введите корректную сумму пополнения",
+        variant: "destructive",
+      });
+      return;
+    }
+    depositMutation.mutate(amount);
   };
 
   const copyToClipboard = async (text: string) => {
@@ -315,7 +356,11 @@ export default function Dashboard() {
                       <div className="text-4xl font-bold mb-4" data-testid="text-balance-main">
                         {user?.main_balance || 0}₽
                       </div>
-                      <Button className="w-full" data-testid="button-deposit">
+                      <Button 
+                        className="w-full" 
+                        data-testid="button-deposit"
+                        onClick={() => setDepositDialogOpen(true)}
+                      >
                         Пополнить баланс
                       </Button>
                     </CardContent>
@@ -513,6 +558,47 @@ export default function Dashboard() {
           </div>
         </main>
       </div>
+
+      <Dialog open={depositDialogOpen} onOpenChange={setDepositDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Пополнить баланс</DialogTitle>
+            <DialogDescription>
+              Введите сумму для пополнения основного баланса. Это демо-версия для тестирования.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              type="number"
+              placeholder="Сумма в рублях"
+              value={depositAmount}
+              onChange={(e) => setDepositAmount(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleDeposit();
+                }
+              }}
+              data-testid="input-deposit-amount"
+            />
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setDepositDialogOpen(false)}
+              data-testid="button-cancel-deposit"
+            >
+              Отмена
+            </Button>
+            <Button 
+              onClick={handleDeposit}
+              disabled={depositMutation.isPending}
+              data-testid="button-confirm-deposit"
+            >
+              {depositMutation.isPending ? "Пополнение..." : "Пополнить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

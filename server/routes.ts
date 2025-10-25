@@ -139,6 +139,40 @@ export function registerRoutes(app: Express): Server {
     res.json(transactions);
   });
 
+  app.post("/api/balance/deposit", requireAuth, async (req, res) => {
+    try {
+      const { amount } = req.body;
+      const userId = req.session.userId!;
+
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ message: "Укажите корректную сумму пополнения" });
+      }
+
+      const user = storage.users.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "Пользователь не найден" });
+      }
+
+      const updatedUser = storage.users.update(userId, {
+        main_balance: (user.main_balance || 0) + amount,
+      });
+
+      storage.transactions.create({
+        user_id: userId,
+        amount: amount,
+        description: `Пополнение баланса`,
+      });
+
+      const { password, ...userWithoutPassword } = updatedUser!;
+      res.json({ 
+        message: "Баланс успешно пополнен",
+        user: userWithoutPassword,
+      });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка пополнения баланса" });
+    }
+  });
+
   app.get("/api/admin/stats", requireAdmin, (req, res) => {
     const stats = storage.stats.getStats();
     res.json(stats);
