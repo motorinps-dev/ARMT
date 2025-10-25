@@ -1,19 +1,65 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Server as ServerIcon, Globe } from "lucide-react";
-import type { Server } from "@shared/schema";
+import { Plus, Server as ServerIcon, Globe, Loader2 } from "lucide-react";
+import type { Server, InsertServer } from "@shared/schema";
+import { insertServerSchema } from "@shared/schema";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export function AdminServers() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const { toast } = useToast();
 
   const { data: servers = [], isLoading } = useQuery<Server[]>({
     queryKey: ["/api/admin/servers"],
+  });
+
+  const form = useForm<InsertServer>({
+    resolver: zodResolver(insertServerSchema),
+    defaultValues: {
+      name: "",
+      panel_url: "",
+      panel_username: "",
+      panel_password: "",
+      vless_address: "",
+      vless_port: 443,
+      vless_inbound_id: 1,
+      vless_sni: "",
+      vless_flow: "xtls-rprx-vision",
+      vless_public_key: "",
+      vless_short_id: "",
+      is_active: 1,
+    },
+  });
+
+  const createServerMutation = useMutation({
+    mutationFn: async (data: InsertServer) => {
+      return await apiRequest("POST", "/api/admin/servers", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/servers"] });
+      toast({
+        title: "Успех",
+        description: "Сервер успешно добавлен",
+      });
+      setIsAddDialogOpen(false);
+      form.reset();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось добавить сервер",
+        variant: "destructive",
+      });
+    },
   });
 
   if (isLoading) {
@@ -43,70 +89,172 @@ export function AdminServers() {
                     Заполните данные для подключения к панели 3X-UI
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Название сервера</Label>
-                      <Input placeholder="Сервер 1" data-testid="input-server-name" />
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit((data) => createServerMutation.mutate(data))} className="space-y-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Название сервера</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Сервер 1" data-testid="input-server-name" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="panel_url"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>URL панели</FormLabel>
+                            <FormControl>
+                              <Input placeholder="https://panel.example.com" data-testid="input-panel-url" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                    <div className="space-y-2">
-                      <Label>URL панели</Label>
-                      <Input placeholder="https://panel.example.com" data-testid="input-panel-url" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="panel_username"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Имя пользователя</FormLabel>
+                            <FormControl>
+                              <Input placeholder="admin" data-testid="input-panel-username" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="panel_password"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Пароль</FormLabel>
+                            <FormControl>
+                              <Input type="password" placeholder="••••••••" data-testid="input-panel-password" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Имя пользователя</Label>
-                      <Input placeholder="admin" data-testid="input-panel-username" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="vless_address"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>VLESS адрес</FormLabel>
+                            <FormControl>
+                              <Input placeholder="example.com" data-testid="input-vless-address" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="vless_port"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>VLESS порт</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="443" data-testid="input-vless-port" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Пароль</Label>
-                      <Input type="password" placeholder="••••••••" data-testid="input-panel-password" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="vless_inbound_id"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Inbound ID</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="1" data-testid="input-inbound-id" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="vless_sni"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>SNI</FormLabel>
+                            <FormControl>
+                              <Input placeholder="example.com" data-testid="input-sni" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>VLESS адрес</Label>
-                      <Input placeholder="example.com" data-testid="input-vless-address" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="vless_flow"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Flow</FormLabel>
+                            <FormControl>
+                              <Input placeholder="xtls-rprx-vision" data-testid="input-flow" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="vless_public_key"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Public Key</FormLabel>
+                            <FormControl>
+                              <Input placeholder="public_key" data-testid="input-public-key" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                    <div className="space-y-2">
-                      <Label>VLESS порт</Label>
-                      <Input type="number" placeholder="443" data-testid="input-vless-port" />
+                    <FormField
+                      control={form.control}
+                      name="vless_short_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Short ID</FormLabel>
+                          <FormControl>
+                            <Input placeholder="short_id" data-testid="input-short-id" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="flex gap-2">
+                      <Button type="submit" className="flex-1" disabled={createServerMutation.isPending} data-testid="button-save-server">
+                        {createServerMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Сохранить сервер
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                        Отмена
+                      </Button>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Inbound ID</Label>
-                      <Input type="number" placeholder="1" data-testid="input-inbound-id" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>SNI</Label>
-                      <Input placeholder="example.com" data-testid="input-sni" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Flow</Label>
-                      <Input placeholder="xtls-rprx-vision" data-testid="input-flow" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Public Key</Label>
-                      <Input placeholder="public_key" data-testid="input-public-key" />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Short ID</Label>
-                    <Input placeholder="short_id" data-testid="input-short-id" />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button className="flex-1" data-testid="button-save-server">
-                      Сохранить сервер
-                    </Button>
-                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                      Отмена
-                    </Button>
-                  </div>
-                </div>
+                  </form>
+                </Form>
               </DialogContent>
             </Dialog>
           </div>

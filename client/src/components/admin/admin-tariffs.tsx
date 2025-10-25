@@ -1,19 +1,59 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Calendar, Database } from "lucide-react";
-import type { Tariff } from "@shared/schema";
+import { Plus, Calendar, Database, Loader2 } from "lucide-react";
+import type { Tariff, InsertTariff } from "@shared/schema";
+import { insertTariffSchema } from "@shared/schema";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export function AdminTariffs() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const { toast } = useToast();
 
   const { data: tariffs = [], isLoading } = useQuery<Tariff[]>({
     queryKey: ["/api/admin/tariffs"],
+  });
+
+  const form = useForm<InsertTariff>({
+    resolver: zodResolver(insertTariffSchema),
+    defaultValues: {
+      key: "",
+      name: "",
+      price: 0,
+      days: 30,
+      gb: 1000,
+      is_active: 1,
+    },
+  });
+
+  const createTariffMutation = useMutation({
+    mutationFn: async (data: InsertTariff) => {
+      return await apiRequest("POST", "/api/admin/tariffs", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tariffs"] });
+      toast({
+        title: "Успех",
+        description: "Тариф успешно создан",
+      });
+      setIsAddDialogOpen(false);
+      form.reset();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось создать тариф",
+        variant: "destructive",
+      });
+    },
   });
 
   if (isLoading) {
@@ -43,38 +83,86 @@ export function AdminTariffs() {
                     Укажите параметры тарифного плана
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label>Ключ (уникальный идентификатор)</Label>
-                    <Input placeholder="6_months" data-testid="input-tariff-key" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Название</Label>
-                    <Input placeholder="6 Месяцев" data-testid="input-tariff-name" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Цена (₽)</Label>
-                      <Input type="number" placeholder="500" data-testid="input-tariff-price" />
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit((data) => createTariffMutation.mutate(data))} className="space-y-4 py-4">
+                    <FormField
+                      control={form.control}
+                      name="key"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Ключ (уникальный идентификатор)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="6_months" data-testid="input-tariff-key" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Название</FormLabel>
+                          <FormControl>
+                            <Input placeholder="6 Месяцев" data-testid="input-tariff-name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="price"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Цена (₽)</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="500" data-testid="input-tariff-price" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="days"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Количество дней</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="186" data-testid="input-tariff-days" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Количество дней</Label>
-                      <Input type="number" placeholder="186" data-testid="input-tariff-days" />
+                    <FormField
+                      control={form.control}
+                      name="gb"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Трафик (ГБ)</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="6000" data-testid="input-tariff-gb" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="flex gap-2">
+                      <Button type="submit" className="flex-1" disabled={createTariffMutation.isPending} data-testid="button-save-tariff">
+                        {createTariffMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Создать тариф
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                        Отмена
+                      </Button>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Трафик (ГБ)</Label>
-                    <Input type="number" placeholder="6000" data-testid="input-tariff-gb" />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button className="flex-1" data-testid="button-save-tariff">
-                      Создать тариф
-                    </Button>
-                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                      Отмена
-                    </Button>
-                  </div>
-                </div>
+                  </form>
+                </Form>
               </DialogContent>
             </Dialog>
           </div>

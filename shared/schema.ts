@@ -72,11 +72,9 @@ export type InsertServer = z.infer<typeof insertServerSchema>;
 
 export const vpnProfileSchema = z.object({
   id: z.number(),
-  assigned_to_user_id: z.number(),
+  user_id: z.number(),
   server_id: z.number(),
   config_link: z.string(),
-  client_uuid: z.string(),
-  inbound_id: z.number(),
   created_at: z.string(),
 });
 
@@ -131,7 +129,6 @@ export type InsertPromocode = z.infer<typeof insertPromocodeSchema>;
 export const transactionSchema = z.object({
   id: z.number(),
   user_id: z.number(),
-  type: z.enum(['purchase', 'deposit', 'referral_bonus', 'admin_credit']),
   amount: z.number(),
   description: z.string(),
   created_at: z.string(),
@@ -157,7 +154,13 @@ export const referralSchema = z.object({
   created_at: z.string(),
 });
 
+export const insertReferralSchema = referralSchema.omit({ 
+  id: true, 
+  created_at: true 
+});
+
 export type Referral = z.infer<typeof referralSchema>;
+export type InsertReferral = z.infer<typeof insertReferralSchema>;
 
 // ============================================
 // STATISTICS SCHEMAS

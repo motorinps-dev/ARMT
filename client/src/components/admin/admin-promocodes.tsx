@@ -1,19 +1,57 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Percent, Hash } from "lucide-react";
-import type { Promocode } from "@shared/schema";
+import { Plus, Percent, Hash, Loader2 } from "lucide-react";
+import type { Promocode, InsertPromocode } from "@shared/schema";
+import { insertPromocodeSchema } from "@shared/schema";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export function AdminPromocodes() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const { toast } = useToast();
 
   const { data: promocodes = [], isLoading } = useQuery<Promocode[]>({
     queryKey: ["/api/admin/promocodes"],
+  });
+
+  const form = useForm<InsertPromocode>({
+    resolver: zodResolver(insertPromocodeSchema),
+    defaultValues: {
+      code: "",
+      discount_percent: 10,
+      max_uses: 100,
+      is_active: 1,
+    },
+  });
+
+  const createPromocodeMutation = useMutation({
+    mutationFn: async (data: InsertPromocode) => {
+      return await apiRequest("POST", "/api/admin/promocodes", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/promocodes"] });
+      toast({
+        title: "Успех",
+        description: "Промокод успешно создан",
+      });
+      setIsAddDialogOpen(false);
+      form.reset();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось создать промокод",
+        variant: "destructive",
+      });
+    },
   });
 
   if (isLoading) {
@@ -43,30 +81,60 @@ export function AdminPromocodes() {
                     Создайте промокод для скидки
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label>Код промокода</Label>
-                    <Input placeholder="SUMMER2025" data-testid="input-promo-code" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Скидка (%)</Label>
-                      <Input type="number" placeholder="20" min="1" max="100" data-testid="input-discount" />
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit((data) => createPromocodeMutation.mutate(data))} className="space-y-4 py-4">
+                    <FormField
+                      control={form.control}
+                      name="code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Код промокода</FormLabel>
+                          <FormControl>
+                            <Input placeholder="SUMMER2025" data-testid="input-promo-code" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="discount_percent"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Скидка (%)</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="20" min="1" max="100" data-testid="input-discount" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="max_uses"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Максимум использований</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="100" data-testid="input-max-uses" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Максимум использований</Label>
-                      <Input type="number" placeholder="100" data-testid="input-max-uses" />
+                    <div className="flex gap-2">
+                      <Button type="submit" className="flex-1" disabled={createPromocodeMutation.isPending} data-testid="button-save-promocode">
+                        {createPromocodeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Создать промокод
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                        Отмена
+                      </Button>
                     </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button className="flex-1" data-testid="button-save-promocode">
-                      Создать промокод
-                    </Button>
-                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                      Отмена
-                    </Button>
-                  </div>
-                </div>
+                  </form>
+                </Form>
               </DialogContent>
             </Dialog>
           </div>

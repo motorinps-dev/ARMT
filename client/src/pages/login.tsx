@@ -131,18 +131,18 @@ export default function Login() {
 
           <div className="mt-6 text-center text-sm">
             <span className="text-muted-foreground">Нет аккаунта? </span>
-            <Link href="/register" data-testid="link-register">
-              <a className="text-primary hover:underline font-medium">
+            <Link href="/register">
+              <span className="text-primary hover:underline font-medium cursor-pointer" data-testid="link-register">
                 Зарегистрироваться
-              </a>
+              </span>
             </Link>
           </div>
 
           <div className="mt-4 text-center">
-            <Link href="/" data-testid="link-home">
-              <a className="text-sm text-muted-foreground hover:text-primary transition-colors">
+            <Link href="/">
+              <span className="text-sm text-muted-foreground hover:text-primary transition-colors cursor-pointer" data-testid="link-home">
                 ← Вернуться на главную
-              </a>
+              </span>
             </Link>
           </div>
         </CardContent>

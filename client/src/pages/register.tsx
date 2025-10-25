@@ -125,18 +125,18 @@ export default function Register() {
 
           <div className="mt-6 text-center text-sm">
             <span className="text-muted-foreground">Уже есть аккаунт? </span>
-            <Link href="/login" data-testid="link-login">
-              <a className="text-primary hover:underline font-medium">
+            <Link href="/login">
+              <span className="text-primary hover:underline font-medium cursor-pointer" data-testid="link-login">
                 Войти
-              </a>
+              </span>
             </Link>
           </div>
 
           <div className="mt-4 text-center">
-            <Link href="/" data-testid="link-home">
-              <a className="text-sm text-muted-foreground hover:text-primary transition-colors">
+            <Link href="/">
+              <span className="text-sm text-muted-foreground hover:text-primary transition-colors cursor-pointer" data-testid="link-home">
                 ← Вернуться на главную
-              </a>
+              </span>
             </Link>
           </div>
         </CardContent>
