@@ -12,6 +12,7 @@ import {
   DollarSign,
   UserPlus,
   Activity,
+  MessageSquare,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,8 +24,9 @@ import { AdminUsers } from "@/components/admin/admin-users";
 import { AdminServers } from "@/components/admin/admin-servers";
 import { AdminTariffs } from "@/components/admin/admin-tariffs";
 import { AdminPromocodes } from "@/components/admin/admin-promocodes";
+import { AdminSupportTickets } from "@/components/admin/admin-support-tickets";
 
-type AdminTab = "overview" | "users" | "servers" | "tariffs" | "promocodes" | "settings";
+type AdminTab = "overview" | "users" | "servers" | "tariffs" | "promocodes" | "support" | "settings";
 
 export default function Admin() {
   const [, setLocation] = useLocation();
@@ -103,6 +105,15 @@ export default function Admin() {
               Промокоды
             </Button>
             <Button
+              variant={activeTab === "support" ? "secondary" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setActiveTab("support")}
+              data-testid="button-tab-support"
+            >
+              <MessageSquare className="mr-2 h-4 w-4" />
+              Поддержка
+            </Button>
+            <Button
               variant={activeTab === "settings" ? "secondary" : "ghost"}
               className="w-full justify-start"
               onClick={() => setActiveTab("settings")}
@@ -135,6 +146,7 @@ export default function Admin() {
                 {activeTab === "servers" && "Серверы"}
                 {activeTab === "tariffs" && "Тарифы"}
                 {activeTab === "promocodes" && "Промокоды"}
+                {activeTab === "support" && "Поддержка"}
                 {activeTab === "settings" && "Настройки"}
               </h1>
               <ThemeToggle />
@@ -286,6 +298,7 @@ export default function Admin() {
             {activeTab === "servers" && <AdminServers />}
             {activeTab === "tariffs" && <AdminTariffs />}
             {activeTab === "promocodes" && <AdminPromocodes />}
+            {activeTab === "support" && <AdminSupportTickets />}
 
             {activeTab === "settings" && (
               <div className="space-y-6">

@@ -12,6 +12,8 @@ import {
   Calendar,
   Database,
   CreditCard,
+  MessageSquare,
+  Send,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,16 +28,17 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Telegram2FASettings } from "@/components/telegram-2fa-settings";
 import { VpnConfigCard } from "@/components/vpn-config-card";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { User, VpnProfile, Tariff, Referral, Transaction } from "@shared/schema";
+import type { User, VpnProfile, Tariff, Referral, Transaction, SupportTicket, InsertSupportTicket } from "@shared/schema";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   
   const urlParams = new URLSearchParams(window.location.search);
-  const tabFromUrl = urlParams.get("tab") as "overview" | "balance" | "referrals" | "settings" | "tariffs" | null;
+  const tabFromUrl = urlParams.get("tab") as "overview" | "balance" | "referrals" | "settings" | "tariffs" | "support" | null;
   
-  const [activeTab, setActiveTab] = useState<"overview" | "balance" | "referrals" | "settings" | "tariffs">(
+  const [activeTab, setActiveTab] = useState<"overview" | "balance" | "referrals" | "settings" | "tariffs" | "support">(
     tabFromUrl || "overview"
   );
   
@@ -208,6 +211,15 @@ export default function Dashboard() {
               Рефералы
             </Button>
             <Button
+              variant={activeTab === "support" ? "secondary" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setActiveTab("support")}
+              data-testid="button-tab-support"
+            >
+              <MessageSquare className="mr-2 h-4 w-4" />
+              Поддержка
+            </Button>
+            <Button
               variant={activeTab === "settings" ? "secondary" : "ghost"}
               className="w-full justify-start"
               onClick={() => setActiveTab("settings")}
@@ -252,6 +264,7 @@ export default function Dashboard() {
                 {activeTab === "tariffs" && "Выбор тарифа"}
                 {activeTab === "balance" && "Баланс"}
                 {activeTab === "referrals" && "Реферальная программа"}
+                {activeTab === "support" && "Поддержка"}
                 {activeTab === "settings" && "Настройки"}
               </h1>
               <ThemeToggle />
@@ -532,6 +545,8 @@ export default function Dashboard() {
               </div>
             )}
 
+            {activeTab === "support" && <SupportTab user={user} />}
+
             {activeTab === "settings" && (
               <div className="space-y-6">
                 <Card>
@@ -683,6 +698,9 @@ export default function Dashboard() {
 
 function TariffsTab({ user }: { user: User | undefined }) {
   const { toast } = useToast();
+  const [promoCode, setPromoCode] = useState("");
+  const [selectedTariff, setSelectedTariff] = useState<Tariff | null>(null);
+  const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
   
   const { data: tariffs = [], isLoading } = useQuery<Tariff[]>({
     queryKey: ["/api/tariffs"],
@@ -690,8 +708,8 @@ function TariffsTab({ user }: { user: User | undefined }) {
   });
   
   const purchaseMutation = useMutation({
-    mutationFn: async (tariffId: number) => {
-      return apiRequest("POST", "/api/subscription/purchase", { tariffId });
+    mutationFn: async ({ tariffId, promoCode }: { tariffId: number; promoCode?: string }) => {
+      return apiRequest("POST", "/api/subscription/purchase", { tariffId, promoCode });
     },
     onSuccess: (response: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/me"] });
@@ -700,6 +718,9 @@ function TariffsTab({ user }: { user: User | undefined }) {
         title: "Подписка активирована",
         description: response.message || "Подписка успешно активирована",
       });
+      setPurchaseDialogOpen(false);
+      setPromoCode("");
+      setSelectedTariff(null);
     },
     onError: (error: any) => {
       toast({
@@ -722,7 +743,16 @@ function TariffsTab({ user }: { user: User | undefined }) {
       return;
     }
     
-    purchaseMutation.mutate(tariff.id);
+    setSelectedTariff(tariff);
+    setPurchaseDialogOpen(true);
+  };
+
+  const confirmPurchase = () => {
+    if (!selectedTariff) return;
+    purchaseMutation.mutate({ 
+      tariffId: selectedTariff.id, 
+      promoCode: promoCode.trim() || undefined 
+    });
   };
   
   if (isLoading) {
@@ -800,6 +830,245 @@ function TariffsTab({ user }: { user: User | undefined }) {
           </Card>
         ))}
       </div>
+
+      <Dialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen}>
+        <DialogContent data-testid="dialog-purchase-confirm">
+          <DialogHeader>
+            <DialogTitle>Подтверждение покупки</DialogTitle>
+            <DialogDescription>
+              {selectedTariff && `Вы покупаете тариф "${selectedTariff.name}" за ${selectedTariff.price}₽`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">
+                Промокод (необязательно)
+              </label>
+              <Input
+                placeholder="Введите промокод"
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                data-testid="input-promo-code"
+              />
+            </div>
+            {selectedTariff && (
+              <div className="text-sm text-muted-foreground">
+                <p>Ваш баланс: {user?.main_balance || 0}₽</p>
+                <p>Стоимость: {selectedTariff.price}₽</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setPurchaseDialogOpen(false)}
+              disabled={purchaseMutation.isPending}
+              data-testid="button-cancel-purchase"
+            >
+              Отмена
+            </Button>
+            <Button 
+              onClick={confirmPurchase}
+              disabled={purchaseMutation.isPending}
+              data-testid="button-confirm-purchase"
+            >
+              {purchaseMutation.isPending ? "Обработка..." : "Подтвердить покупку"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
+  );
+}
+
+function SupportTab({ user }: { user: User | undefined }) {
+  const { toast } = useToast();
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  const { data: tickets = [], isLoading } = useQuery<SupportTicket[]>({
+    queryKey: ["/api/support-tickets"],
+    enabled: !!user,
+  });
+
+  const createTicketMutation = useMutation({
+    mutationFn: async (data: { subject: string; message: string }) => {
+      return apiRequest("POST", "/api/support-tickets", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/support-tickets"] });
+      toast({
+        title: "Тикет создан",
+        description: "Ваш запрос в поддержку отправлен. Мы ответим в ближайшее время.",
+      });
+      setCreateDialogOpen(false);
+      setSubject("");
+      setMessage("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось создать тикет",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCreateTicket = () => {
+    if (!subject.trim() || !message.trim()) {
+      toast({
+        title: "Ошибка",
+        description: "Заполните все поля",
+        variant: "destructive",
+      });
+      return;
+    }
+    createTicketMutation.mutate({ subject: subject.trim(), message: message.trim() });
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "open":
+        return <Badge variant="default">Открыт</Badge>;
+      case "in_progress":
+        return <Badge variant="secondary">В работе</Badge>;
+      case "closed":
+        return <Badge variant="outline">Закрыт</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  };
+
+  const getPriorityBadge = (priority: string) => {
+    switch (priority) {
+      case "high":
+        return <Badge variant="destructive">Высокий</Badge>;
+      case "medium":
+        return <Badge variant="secondary">Средний</Badge>;
+      case "low":
+        return <Badge variant="outline">Низкий</Badge>;
+      default:
+        return <Badge>{priority}</Badge>;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-pulse text-muted-foreground">Загрузка тикетов...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Тикеты поддержки</CardTitle>
+              <CardDescription>Создавайте запросы и отслеживайте их статус</CardDescription>
+            </div>
+            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+              <Button onClick={() => setCreateDialogOpen(true)} data-testid="button-create-ticket">
+                <Send className="mr-2 h-4 w-4" />
+                Создать тикет
+              </Button>
+              <DialogContent data-testid="dialog-create-ticket">
+                <DialogHeader>
+                  <DialogTitle>Создать запрос в поддержку</DialogTitle>
+                  <DialogDescription>
+                    Опишите вашу проблему или вопрос
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Тема</label>
+                    <Input
+                      placeholder="Краткое описание проблемы"
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                      data-testid="input-ticket-subject"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Сообщение</label>
+                    <Textarea
+                      placeholder="Подробное описание вашего вопроса или проблемы"
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      rows={5}
+                      data-testid="textarea-ticket-message"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setCreateDialogOpen(false)}
+                    disabled={createTicketMutation.isPending}
+                    data-testid="button-cancel-ticket"
+                  >
+                    Отмена
+                  </Button>
+                  <Button 
+                    onClick={handleCreateTicket}
+                    disabled={createTicketMutation.isPending}
+                    data-testid="button-submit-ticket"
+                  >
+                    {createTicketMutation.isPending ? "Отправка..." : "Отправить"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {tickets.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              У вас пока нет тикетов
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {tickets.map((ticket) => (
+                <Card key={ticket.id} data-testid={`ticket-${ticket.id}`}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg">{ticket.subject}</CardTitle>
+                        <CardDescription className="mt-1">
+                          Создан: {new Date(ticket.created_at).toLocaleString('ru-RU')}
+                        </CardDescription>
+                      </div>
+                      <div className="flex gap-2">
+                        {getStatusBadge(ticket.status)}
+                        {getPriorityBadge(ticket.priority)}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <div className="text-sm font-medium mb-1">Ваше сообщение:</div>
+                      <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+                        {ticket.message}
+                      </div>
+                    </div>
+                    {ticket.admin_reply && (
+                      <div>
+                        <div className="text-sm font-medium mb-1 text-primary">Ответ поддержки:</div>
+                        <div className="text-sm bg-primary/10 p-3 rounded-md">
+                          {ticket.admin_reply}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

@@ -9,6 +9,7 @@ import {
   insertServerSchema,
   insertTariffSchema,
   insertPromocodeSchema,
+  insertSupportTicketSchema,
 } from "@shared/schema";
 import {
   handleTelegramUpdate,
@@ -310,7 +311,7 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/subscription/purchase", requireAuth, async (req, res) => {
     try {
-      const { tariffId } = req.body;
+      const { tariffId, promoCode } = req.body;
       
       if (!tariffId) {
         return res.status(400).json({ message: "Не указан тариф" });
@@ -326,11 +327,36 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: "Пользователь не найден" });
       }
       
-      if (user.main_balance < tariff.price) {
+      let finalPrice = tariff.price;
+      let discountApplied = 0;
+      let promoToIncrement: string | null = null;
+      
+      if (promoCode) {
+        const promo = storage.promocodes.findByCode(promoCode.toUpperCase());
+        
+        if (!promo) {
+          return res.status(400).json({ message: "Промокод не найден" });
+        }
+        
+        if (promo.is_active !== 1) {
+          return res.status(400).json({ message: "Промокод неактивен" });
+        }
+        
+        if (promo.uses_count >= promo.max_uses) {
+          return res.status(400).json({ message: "Промокод исчерпан" });
+        }
+        
+        discountApplied = Math.round(tariff.price * (promo.discount_percent / 100) * 100) / 100;
+        finalPrice = tariff.price - discountApplied;
+        
+        promoToIncrement = promoCode.toUpperCase();
+      }
+      
+      if (user.main_balance < finalPrice) {
         return res.status(400).json({ message: "Недостаточно средств на балансе" });
       }
       
-      const newBalance = (user.main_balance || 0) - tariff.price;
+      const newBalance = (user.main_balance || 0) - finalPrice;
       const currentExpires = user.expires_at && new Date(user.expires_at) > new Date() 
         ? new Date(user.expires_at) 
         : new Date();
@@ -343,15 +369,27 @@ export function registerRoutes(app: Express): Server {
         expires_at: newExpires.toISOString(),
       });
       
+      const description = promoCode 
+        ? `Покупка подписки "${tariff.name}" (промокод ${promoCode}, скидка ${discountApplied}₽)`
+        : `Покупка подписки "${tariff.name}"`;
+      
       storage.transactions.create({
         user_id: req.session.userId!,
-        amount: -tariff.price,
-        description: `Покупка подписки "${tariff.name}"`,
+        amount: -finalPrice,
+        description,
       });
       
+      if (promoToIncrement) {
+        storage.promocodes.incrementUses(promoToIncrement);
+      }
+      
       res.json({ 
-        message: "Подписка успешно активирована",
+        message: promoCode 
+          ? `Подписка успешно активирована! Скидка ${discountApplied}₽` 
+          : "Подписка успешно активирована",
         expires_at: newExpires.toISOString(),
+        discount: discountApplied,
+        final_price: finalPrice,
       });
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Ошибка покупки подписки" });
@@ -425,6 +463,50 @@ export function registerRoutes(app: Express): Server {
       res.json(userWithoutPassword);
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Ошибка обновления пользователя" });
+    }
+  });
+
+  app.get("/api/support-tickets", requireAuth, (req, res) => {
+    try {
+      const tickets = storage.supportTickets.findByUserId(req.session.userId!);
+      res.json(tickets);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка загрузки тикетов" });
+    }
+  });
+
+  app.post("/api/support-tickets", requireAuth, async (req, res) => {
+    try {
+      const validatedData = insertSupportTicketSchema.parse({
+        ...req.body,
+        user_id: req.session.userId!,
+      });
+      const ticket = storage.supportTickets.create(validatedData);
+      res.json(ticket);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка создания тикета" });
+    }
+  });
+
+  app.get("/api/admin/support-tickets", requireAdmin, (req, res) => {
+    try {
+      const tickets = storage.supportTickets.list();
+      res.json(tickets);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка загрузки тикетов" });
+    }
+  });
+
+  app.patch("/api/admin/support-tickets/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const ticket = storage.supportTickets.update(id, req.body);
+      if (!ticket) {
+        return res.status(404).json({ message: "Тикет не найден" });
+      }
+      res.json(ticket);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка обновления тикета" });
     }
   });
 

@@ -17,6 +17,8 @@ import type {
   Stats,
   SiteSettings,
   InsertSiteSettings,
+  SupportTicket,
+  InsertSupportTicket,
 } from "@shared/schema";
 
 const db = new Database("vpn_platform.db");
@@ -116,15 +118,41 @@ db.exec(`
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS support_tickets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    subject TEXT NOT NULL,
+    message TEXT NOT NULL,
+    status TEXT DEFAULT 'open',
+    priority TEXT DEFAULT 'medium',
+    admin_reply TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
   CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   CREATE INDEX IF NOT EXISTS idx_vpn_profiles_user_id ON vpn_profiles(user_id);
   CREATE INDEX IF NOT EXISTS idx_referrals_referrer_id ON referrals(referrer_id);
   CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON support_tickets(user_id);
+  CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(status);
 `);
 
 function addColumnIfNotExists(tableName: string, columnName: string, columnDef: string) {
   try {
+    const allowedTables = ['users', 'servers', 'tariffs', 'promocodes', 'vpn_profiles', 'referrals', 'transactions', 'site_settings', 'support_tickets'];
+    const allowedColumns = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+    
+    if (!allowedTables.includes(tableName)) {
+      throw new Error(`Invalid table name: ${tableName}`);
+    }
+    
+    if (!allowedColumns.test(columnName)) {
+      throw new Error(`Invalid column name: ${columnName}`);
+    }
+    
     const columns = db.prepare(`PRAGMA table_info(${tableName})`).all() as any[];
     const columnExists = columns.some((col: any) => col.name === columnName);
     if (!columnExists) {
@@ -203,6 +231,13 @@ export interface IStorage {
     get(key: string): string | undefined;
     set(key: string, value: string): void;
     getAll(): Record<string, string>;
+  };
+  supportTickets: {
+    create(ticket: InsertSupportTicket): SupportTicket;
+    findById(id: number): SupportTicket | undefined;
+    findByUserId(userId: number): SupportTicket[];
+    list(): SupportTicket[];
+    update(id: number, data: Partial<SupportTicket>): SupportTicket | undefined;
   };
 }
 
@@ -490,6 +525,76 @@ const storage: IStorage = {
         acc[row.key] = row.value;
         return acc;
       }, {} as Record<string, string>);
+    },
+  },
+
+  supportTickets: {
+    create(ticket: InsertSupportTicket): SupportTicket {
+      const stmt = db.prepare(`
+        INSERT INTO support_tickets (user_id, subject, message, status, priority)
+        VALUES (@user_id, @subject, @message, @status, @priority)
+      `);
+      const result = stmt.run({
+        user_id: ticket.user_id,
+        subject: ticket.subject,
+        message: ticket.message,
+        status: ticket.status || 'open',
+        priority: ticket.priority || 'medium',
+      });
+      return storage.supportTickets.findById(result.lastInsertRowid as number)!;
+    },
+
+    findById(id: number): SupportTicket | undefined {
+      const stmt = db.prepare("SELECT * FROM support_tickets WHERE id = ?");
+      return stmt.get(id) as SupportTicket | undefined;
+    },
+
+    findByUserId(userId: number): SupportTicket[] {
+      const stmt = db.prepare("SELECT * FROM support_tickets WHERE user_id = ? ORDER BY created_at DESC");
+      return stmt.all(userId) as SupportTicket[];
+    },
+
+    list(): SupportTicket[] {
+      const stmt = db.prepare("SELECT * FROM support_tickets ORDER BY created_at DESC");
+      return stmt.all() as SupportTicket[];
+    },
+
+    update(id: number, data: Partial<SupportTicket>): SupportTicket | undefined {
+      const updates: string[] = [];
+      const values: any = {};
+
+      if (data.subject !== undefined) {
+        updates.push("subject = @subject");
+        values.subject = data.subject;
+      }
+      if (data.message !== undefined) {
+        updates.push("message = @message");
+        values.message = data.message;
+      }
+      if (data.status !== undefined) {
+        updates.push("status = @status");
+        values.status = data.status;
+      }
+      if (data.priority !== undefined) {
+        updates.push("priority = @priority");
+        values.priority = data.priority;
+      }
+      if (data.admin_reply !== undefined) {
+        updates.push("admin_reply = @admin_reply");
+        values.admin_reply = data.admin_reply;
+      }
+
+      if (updates.length === 0) {
+        return storage.supportTickets.findById(id);
+      }
+
+      updates.push("updated_at = datetime('now')");
+      values.id = id;
+
+      const stmt = db.prepare(`UPDATE support_tickets SET ${updates.join(", ")} WHERE id = @id`);
+      stmt.run(values);
+
+      return storage.supportTickets.findById(id);
     },
   },
 };

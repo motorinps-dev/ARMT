@@ -206,3 +206,32 @@ export const SITE_MODES = {
 } as const;
 
 export type SiteMode = typeof SITE_MODES[keyof typeof SITE_MODES];
+
+// ============================================
+// SUPPORT TICKET SCHEMAS
+// ============================================
+
+export const supportTicketSchema = z.object({
+  id: z.number(),
+  user_id: z.number(),
+  subject: z.string(),
+  message: z.string(),
+  status: z.enum(['open', 'in_progress', 'closed']).default('open'),
+  priority: z.enum(['low', 'medium', 'high']).default('medium'),
+  admin_reply: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const insertSupportTicketSchema = supportTicketSchema.omit({ 
+  id: true, 
+  created_at: true,
+  updated_at: true,
+  admin_reply: true,
+}).extend({
+  status: z.enum(['open', 'in_progress', 'closed']).default('open').optional(),
+  priority: z.enum(['low', 'medium', 'high']).default('medium').optional(),
+});
+
+export type SupportTicket = z.infer<typeof supportTicketSchema>;
+export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
