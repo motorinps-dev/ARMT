@@ -182,3 +182,27 @@ export const statsSchema = z.object({
 });
 
 export type Stats = z.infer<typeof statsSchema>;
+
+// ============================================
+// SITE SETTINGS SCHEMAS
+// ============================================
+
+export const siteSettingsSchema = z.object({
+  key: z.string(),
+  value: z.string(),
+  updated_at: z.string(),
+});
+
+export const insertSiteSettingsSchema = siteSettingsSchema.omit({ updated_at: true });
+
+export type SiteSettings = z.infer<typeof siteSettingsSchema>;
+export type InsertSiteSettings = z.infer<typeof insertSiteSettingsSchema>;
+
+// Available site modes
+export const SITE_MODES = {
+  DEMO: 'demo',
+  MAINTENANCE: 'maintenance',
+  PRODUCTION: 'production',
+} as const;
+
+export type SiteMode = typeof SITE_MODES[keyof typeof SITE_MODES];

@@ -15,6 +15,8 @@ import type {
   Transaction,
   InsertTransaction,
   Stats,
+  SiteSettings,
+  InsertSiteSettings,
 } from "@shared/schema";
 
 const db = new Database("vpn_platform.db");
@@ -108,6 +110,12 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 
+  CREATE TABLE IF NOT EXISTS site_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
   CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   CREATE INDEX IF NOT EXISTS idx_vpn_profiles_user_id ON vpn_profiles(user_id);
@@ -137,12 +145,20 @@ addColumnIfNotExists('users', 'twofactor_challenge_expires_at', 'TEXT');
 addColumnIfNotExists('users', 'has_used_trial', 'INTEGER DEFAULT 0');
 addColumnIfNotExists('users', 'referrer_id', 'INTEGER');
 
+const defaultSettings = db.prepare("SELECT COUNT(*) as count FROM site_settings").get() as { count: number };
+if (defaultSettings.count === 0) {
+  db.prepare("INSERT INTO site_settings (key, value) VALUES (?, ?)").run('site_mode', 'demo');
+  db.prepare("INSERT INTO site_settings (key, value) VALUES (?, ?)").run('profiles_per_purchase', '5');
+  console.log("Default site settings initialized");
+}
+
 export interface IStorage {
   users: {
     create(user: InsertUser): User;
     findById(id: number): User | undefined;
     findByEmail(email: string): User | undefined;
     findByTelegramId(telegramId: number): User | undefined;
+    findByNickname(nickname: string): User | undefined;
     update(id: number, data: Partial<User>): User | undefined;
     list(): User[];
   };
@@ -183,6 +199,11 @@ export interface IStorage {
   stats: {
     getStats(): Stats;
   };
+  settings: {
+    get(key: string): string | undefined;
+    set(key: string, value: string): void;
+    getAll(): Record<string, string>;
+  };
 }
 
 const storage: IStorage = {
@@ -215,6 +236,11 @@ const storage: IStorage = {
     findByTelegramId(telegramId: number): User | undefined {
       const stmt = db.prepare("SELECT * FROM users WHERE telegram_id = ?");
       return stmt.get(telegramId) as User | undefined;
+    },
+
+    findByNickname(nickname: string): User | undefined {
+      const stmt = db.prepare("SELECT * FROM users WHERE nickname = ?");
+      return stmt.get(nickname) as User | undefined;
     },
 
     update(id: number, data: Partial<User>): User | undefined {
@@ -442,6 +468,28 @@ const storage: IStorage = {
         new_users_today: newUsersToday.count,
         revenue_today: revenueToday.sum,
       };
+    },
+  },
+
+  settings: {
+    get(key: string): string | undefined {
+      const stmt = db.prepare("SELECT value FROM site_settings WHERE key = ?");
+      const result = stmt.get(key) as { value: string } | undefined;
+      return result?.value;
+    },
+
+    set(key: string, value: string): void {
+      const stmt = db.prepare("INSERT OR REPLACE INTO site_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))");
+      stmt.run(key, value);
+    },
+
+    getAll(): Record<string, string> {
+      const stmt = db.prepare("SELECT key, value FROM site_settings");
+      const rows = stmt.all() as { key: string; value: string }[];
+      return rows.reduce((acc, row) => {
+        acc[row.key] = row.value;
+        return acc;
+      }, {} as Record<string, string>);
     },
   },
 };
