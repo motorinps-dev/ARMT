@@ -1,0 +1,16 @@
+[Unit]
+Description=ARMT VPN Web Application
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/armt-vpn
+Environment="NODE_ENV=production"
+EnvironmentFile=/var/www/armt-vpn/.env
+ExecStart=/usr/bin/node /var/www/armt-vpn/dist/index.js
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

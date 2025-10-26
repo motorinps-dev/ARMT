@@ -199,7 +199,7 @@ class XUI_API:
 # ===          БАЗА ДАННЫХ            ===
 # =======================================
 def init_db():
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         cursor = conn.cursor()
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -313,7 +313,7 @@ try:            cursor.execute("ALTER TABLE users ADD COLUMN has_used_trial INTE
 async def get_text(key: str, context: ContextTypes.DEFAULT_TYPE, **kwargs) -> str:
     if 'texts' not in context.bot_data:
         context.bot_data['texts'] = {}
-        with sqlite3.connect("vpn_platform.db") as conn:
+        with sqlite3.connect("vpn_bot.db") as conn:
             rows = conn.cursor().execute("SELECT key, value FROM bot_texts").fetchall()
             for row_key, value in rows:
                 context.bot_data['texts'][row_key] = value
@@ -326,14 +326,14 @@ async def get_text(key: str, context: ContextTypes.DEFAULT_TYPE, **kwargs) -> st
         return text_template
 
 async def set_text(key: str, value: str, context: ContextTypes.DEFAULT_TYPE):
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         conn.cursor().execute("UPDATE bot_texts SET value = ? WHERE key = ?", (value, key))
         conn.commit()
     if 'texts' in context.bot_data:
         del context.bot_data['texts']
 
 async def create_and_assign_vpn_profile_from_panel(user_id: int, username: str, tariff_key: str, context: ContextTypes.DEFAULT_TYPE, payment_amount: float = None) -> str | None:
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         conn.row_factory = sqlite3.Row
         servers = conn.cursor().execute("SELECT * FROM servers WHERE is_active = 1").fetchall()
     
@@ -393,7 +393,7 @@ async def create_and_assign_vpn_profile_from_panel(user_id: int, username: str, 
         f"&flow={selected_server['vless_flow']}#{remarks}"
     )
 
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT expires_at FROM users WHERE user_id = ?", (user_id,))
         current_sub = cursor.fetchone()
@@ -470,7 +470,7 @@ cryptobot = CryptoBotAPI(CRYPTO_BOT_TOKEN)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         cursor = conn.cursor()
         existing_user = cursor.execute("SELECT user_id, has_used_trial FROM users WHERE user_id = ?", (user.id,)).fetchone()
         if not existing_user:
@@ -517,7 +517,7 @@ async def select_tariff(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     query = update.callback_query
     await query.answer()
 
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         conn.row_factory = sqlite3.Row
         tariffs = conn.cursor().execute("SELECT * FROM tariffs WHERE is_active = 1 ORDER BY price").fetchall()
 
@@ -560,7 +560,7 @@ async def select_payment_method(update: Update, context: ContextTypes.DEFAULT_TY
 
     tariff_price = PRICES[tariff_key]['price']
     user_id = query.from_user.id
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         balances = conn.cursor().execute("SELECT main_balance, referral_balance FROM users WHERE user_id = ?", (user_id,)).fetchone()
 
     main_balance = balances[0] if balances else 0
@@ -641,7 +641,7 @@ async def create_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     if invoice and invoice.get("ok"):
         res = invoice["result"]
-        with sqlite3.connect("vpn_platform.db") as conn:
+        with sqlite3.connect("vpn_bot.db") as conn:
             conn.cursor().execute(
                 "INSERT INTO payments (invoice_id, user_id, tariff_key, amount, currency, payment_type) VALUES (?, ?, ?, ?, ?, 'subscription')",
                 (res['invoice_id'], query.from_user.id, tariff_key, amount_rub, currency)
@@ -675,7 +675,7 @@ async def check_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         item = res["result"]["items"][0]
         if item["status"] == "paid":
             await query.edit_message_text("✅ Оплата прошла успешно! Выдаю вам доступ...")
-            with sqlite3.connect("vpn_platform.db") as conn:
+            with sqlite3.connect("vpn_bot.db") as conn:
                 cursor = conn.cursor()
                 payment_info = cursor.execute("SELECT tariff_key, amount, status FROM payments WHERE invoice_id = ?", (invoice_id,)).fetchone()
                 if not payment_info or payment_info[2] == 'paid':
@@ -711,7 +711,7 @@ async def balance_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     await query.answer()
     user_id = query.from_user.id
 
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         balances = conn.cursor().execute("SELECT main_balance, referral_balance FROM users WHERE user_id = ?", (user_id,)).fetchone()
 
     main_balance = balances[0] if balances else 0
@@ -776,7 +776,7 @@ async def balance_create_crypto_invoice(update: Update, context: ContextTypes.DE
 
     if invoice and invoice.get("ok"):
         res = invoice["result"]
-        with sqlite3.connect("vpn_platform.db") as conn:
+        with sqlite3.connect("vpn_bot.db") as conn:
             conn.cursor().execute(
                 "INSERT INTO payments (invoice_id, user_id, amount, currency, payment_type) VALUES (?, ?, ?, ?, 'balance')",
                 (res['invoice_id'], update.effective_user.id, amount, currency)
@@ -809,7 +809,7 @@ async def check_balance_payment(update: Update, context: ContextTypes.DEFAULT_TY
     if res and res.get("ok") and res["result"]["items"]:
         item = res["result"]["items"][0]
         if item["status"] == "paid":
-            with sqlite3.connect("vpn_platform.db") as conn:
+            with sqlite3.connect("vpn_bot.db") as conn:
                 payment_status = conn.cursor().execute("SELECT status FROM payments WHERE invoice_id = ?", (invoice_id,)).fetchone()
 
             if payment_status and payment_status[0] == 'paid':
@@ -836,7 +836,7 @@ async def check_balance_payment(update: Update, context: ContextTypes.DEFAULT_TY
 
             amount_rub = paid_amount_crypto * float(rate_info['rate'])
 
-            with sqlite3.connect("vpn_platform.db") as conn:
+            with sqlite3.connect("vpn_bot.db") as conn:
                 cursor = conn.cursor()
                 cursor.execute("UPDATE payments SET status = 'paid' WHERE invoice_id = ?", (invoice_id,))
                 cursor.execute("UPDATE users SET main_balance = main_balance + ? WHERE user_id = ?", (amount_rub, query.from_user.id))
@@ -901,7 +901,7 @@ async def balance_create_rub_ticket(update: Update, context: ContextTypes.DEFAUL
 async def my_vpn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         sub = conn.cursor().execute("SELECT expires_at FROM users WHERE user_id = ?", (query.from_user.id,)).fetchone()
         profiles = conn.cursor().execute("SELECT config_link FROM vpn_profiles WHERE assigned_to_user_id = ?", (query.from_user.id,)).fetchall()
 
@@ -957,7 +957,7 @@ async def referral_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     bot_username = (await context.bot.get_me()).username
     referral_link = f"https://t.me/{bot_username}?start={user_id}"
 
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         cursor = conn.cursor()
         balance_row = cursor.execute("SELECT referral_balance FROM users WHERE user_id = ?", (user_id,)).fetchone()
         balance = balance_row[0] if balance_row else 0
@@ -988,7 +988,7 @@ async def pay_from_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     await query.edit_message_text("⏳ Проверяю балансы и оформляю подписку...")
 
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         cursor = conn.cursor()
         balances = cursor.execute("SELECT main_balance, referral_balance FROM users WHERE user_id = ?", (user_id,)).fetchone()
         main_balance, ref_balance = balances if balances else (0, 0)
@@ -1012,7 +1012,7 @@ async def pay_from_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if config_link:
         await query.message.reply_text(f"✅ Оплата с баланса прошла успешно!\n\n🎉 Ваш VPN готов!\n\nВаш ключ для подключения:\n`{config_link}`", parse_mode="Markdown")
     else:
-        with sqlite3.connect("vpn_platform.db") as conn:
+        with sqlite3.connect("vpn_bot.db") as conn:
             conn.cursor().execute("UPDATE users SET main_balance = ?, referral_balance = ? WHERE user_id = ?", (main_balance, ref_balance, user_id))
             conn.commit()
         await query.message.reply_text("❌ Произошла ошибка при создании профиля VPN. Средства возвращены на ваш баланс. Мы уже уведомлены и скоро свяжемся с вами.")
@@ -1068,7 +1068,7 @@ async def _return_to_admin_panel_after_action(update: Update, context: ContextTy
 async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         c = conn.cursor()
         total_users = c.execute("SELECT COUNT(*) FROM users").fetchone()[0]
         active_subs = c.execute("SELECT COUNT(*) FROM users WHERE expires_at IS NOT NULL AND expires_at > ?", (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),)).fetchone()[0]
@@ -1137,7 +1137,7 @@ async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 async def broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Начинаю рассылку...")
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         users = conn.cursor().execute("SELECT user_id FROM users").fetchall()
 
     success, fail = 0, 0
@@ -1164,7 +1164,7 @@ async def revoke_sub_get_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await update.message.reply_text("Неверный ID. Попробуйте еще раз.")
         return STATE_ADMIN_REVOKE_ID
 
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         user_data = conn.cursor().execute("SELECT username, expires_at FROM users WHERE user_id = ?", (user_id,)).fetchone()
 
     if user_data and user_data[1] and datetime.strptime(user_data[1], '%Y-%m-%d %H:%M:%S') > datetime.now():
@@ -1193,7 +1193,7 @@ async def revoke_sub_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.edit_message_text(f"Отзываю подписку для {user_id} и удаляю ключи с серверов...")
     
     deleted_count = 0
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         
@@ -1229,7 +1229,7 @@ async def admin_find_user_start(update: Update, context: ContextTypes.DEFAULT_TY
 async def admin_find_user_process(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     search_query = update.message.text.strip()
 
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         cursor = conn.cursor()
         if search_query.startswith('@'):
             user_data_tuple = cursor.execute("SELECT user_id, username, subscription_type, expires_at, referrer_id, referral_balance, main_balance FROM users WHERE username = ?", (search_query[1:],)).fetchone()
@@ -1247,7 +1247,7 @@ async def admin_find_user_process(update: Update, context: ContextTypes.DEFAULT_
     context.user_data['found_user_id'] = user_id
     context.user_data['found_user_username'] = username
 
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         ref_count = conn.cursor().execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", (user_id,)).fetchone()[0]
 
     expires_text = "Нет"
@@ -1324,7 +1324,7 @@ async def admin_credit_balance_process(update: Update, context: ContextTypes.DEF
         await update.message.reply_text("Неверная сумма. Введите число, например, 150.")
         return STATE_ADMIN_CREDIT_BALANCE_AMOUNT
 
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE users SET main_balance = main_balance + ? WHERE user_id = ?", (amount, user_id))
         if cursor.rowcount == 0:
@@ -1346,7 +1346,7 @@ async def admin_find_by_key_start(update: Update, context: ContextTypes.DEFAULT_
 
 async def admin_find_by_key_process(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     config_link = update.message.text.strip()
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         conn.row_factory = sqlite3.Row
         profile_data = conn.cursor().execute(
             "SELECT p.*, s.name as server_name "
@@ -1359,7 +1359,7 @@ async def admin_find_by_key_process(update: Update, context: ContextTypes.DEFAUL
         return await _return_to_admin_panel_after_action(update, context)
 
     user_id = profile_data['assigned_to_user_id']
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         user_data = conn.cursor().execute("SELECT username, expires_at, subscription_type FROM users WHERE user_id = ?", (user_id,)).fetchone()
 
     if user_data:
@@ -1381,7 +1381,7 @@ async def admin_find_by_key_process(update: Update, context: ContextTypes.DEFAUL
 
 async def admin_edit_text_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         texts = conn.cursor().execute("SELECT key FROM bot_texts ORDER BY key").fetchall()
 
     keyboard = [[InlineKeyboardButton(key, callback_data=f"edittext_{key}")] for key, in texts if not key.startswith("last_used")]
@@ -1426,7 +1426,7 @@ async def admin_servers_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     await query.answer()
 
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         conn.row_factory = sqlite3.Row
         servers = conn.cursor().execute("SELECT id, name, is_active FROM servers ORDER BY name").fetchall()
     
@@ -1449,7 +1449,7 @@ async def admin_view_server(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     server_id = int(query.data.split('_')[-1])
     context.user_data['server_id'] = server_id
 
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         conn.row_factory = sqlite3.Row
         server = conn.cursor().execute("SELECT * FROM servers WHERE id = ?", (server_id,)).fetchone()
 
@@ -1481,7 +1481,7 @@ async def admin_view_server(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def admin_toggle_server_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     server_id = int(query.data.split('_')[-1])
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         c = conn.cursor()
         current_status = c.execute("SELECT is_active FROM servers WHERE id = ?", (server_id,)).fetchone()[0]
         c.execute("UPDATE servers SET is_active = ? WHERE id = ?", (not current_status, server_id))
@@ -1492,7 +1492,7 @@ async def admin_toggle_server_status(update: Update, context: ContextTypes.DEFAU
 async def admin_delete_server(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     server_id = int(query.data.split('_')[-1])
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         conn.cursor().execute("DELETE FROM servers WHERE id = ?", (server_id,))
         conn.commit()
     await query.answer("Сервер удален!", show_alert=True)
@@ -1545,7 +1545,7 @@ async def server_add_finish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['server_data']['sid'] = update.message.text
     data = context.user_data['server_data']
     try:
-        with sqlite3.connect("vpn_platform.db") as conn:
+        with sqlite3.connect("vpn_bot.db") as conn:
             conn.cursor().execute(
                 """INSERT INTO servers (name, panel_url, panel_username, panel_password, vless_address, 
                 vless_port, vless_inbound_id, vless_sni, vless_flow, vless_public_key, vless_short_id) 
@@ -1583,7 +1583,7 @@ async def _create_support_ticket(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     user = query.from_user
     await query.answer()
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         ticket = conn.cursor().execute("SELECT thread_id FROM support_tickets WHERE user_id = ?", (user.id,)).fetchone()
         if ticket:
             try:
@@ -1605,7 +1605,7 @@ async def _create_support_ticket(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_text("❌ Не удалось создать чат. Проблема на стороне группы поддержки. Администраторы уведомлены.")
         return STATE_MAIN_MENU
     try:
-        with sqlite3.connect("vpn_platform.db") as conn:
+        with sqlite3.connect("vpn_bot.db") as conn:
             conn.cursor().execute("INSERT OR REPLACE INTO support_tickets (user_id, thread_id) VALUES (?, ?)", (user.id, thread_id))
             conn.commit()
 
@@ -1673,7 +1673,7 @@ async def support_start_rub_deposit(update: Update, context: ContextTypes.DEFAUL
 async def forward_to_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     thread_id = None
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         ticket_row = conn.cursor().execute("SELECT thread_id FROM support_tickets WHERE user_id = ?", (user_id,)).fetchone()
         if ticket_row:
             thread_id = ticket_row[0]
@@ -1691,7 +1691,7 @@ async def forward_to_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     thread_id = update.message.message_thread_id
     if update.message.text and update.message.text.startswith('/'): return
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         ticket = conn.cursor().execute("SELECT user_id FROM support_tickets WHERE thread_id = ?", (thread_id,)).fetchone()
     if ticket:
         user_id = ticket[0]
@@ -1703,7 +1703,7 @@ async def forward_to_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def close_chat_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         c = conn.cursor()
         ticket = c.execute("SELECT thread_id FROM support_tickets WHERE user_id = ?", (user_id,)).fetchone()
         if ticket:
@@ -1723,7 +1723,7 @@ async def close_chat_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not (update.message and update.message.chat.id == GROUP_ID and update.message.is_topic_message):
         return
     thread_id = update.message.message_thread_id
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         c = conn.cursor()
         ticket = c.execute("SELECT user_id FROM support_tickets WHERE thread_id = ?", (thread_id,)).fetchone()
         if ticket:
@@ -1750,7 +1750,7 @@ async def subscription_reminder_job(context: ContextTypes.DEFAULT_TYPE):
     three_days_later = (now + timedelta(days=3)).strftime('%Y-%m-%d %H:%M:%S')
     one_day_later = (now + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')
 
-    with sqlite3.connect("vpn_platform.db") as conn:
+    with sqlite3.connect("vpn_bot.db") as conn:
         cursor = conn.cursor()
         # Находим тех, у кого подписка истекает через 2-3 дня
         expiring_in_3_days = cursor.execute(

@@ -1,0 +1,15 @@
+[Unit]
+Description=ARMT VPN Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/armt-vpn
+EnvironmentFile=/var/www/armt-vpn/.env
+ExecStart=/var/www/armt-vpn/venv/bin/python3 /var/www/armt-vpn/attached_assets/bot_1761427044553.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
