@@ -107,6 +107,24 @@ Preferred communication style: Simple, everyday language.
 - Activation/deactivation toggle (`is_active` flag)
 - Code uniqueness constraints
 
+**Telegram 2FA System**
+- Two-factor authentication via Telegram Bot API
+- Link code generation for account connection (expires in 10 minutes)
+- Challenge code generation for login verification (expires in 5 minutes)
+- Webhook integration for bot message handling
+- Session-based challenge verification flow
+- Enable/disable 2FA from user settings
+- Uses TELEGRAM_BOT_TOKEN environment variable for bot authentication
+
+**VPN Connection UX**
+- QR code generation for VPN configurations using qrcode.react
+- One-click copy functionality for configuration keys
+- Comprehensive setup instructions for multiple VPN clients:
+  - v2raytun (iOS/Android) with QR and manual import methods
+  - v2rayNG (Android) with detailed steps
+  - Other clients (Windows, macOS, iOS alternatives)
+- Tabbed instruction interface for platform-specific guides
+
 ### Development Environment
 
 **Development Tools**
@@ -132,6 +150,7 @@ Preferred communication style: Simple, everyday language.
 ### UI Component Libraries
 - **Radix UI**: Unstyled, accessible component primitives (accordion, dialog, dropdown, popover, tabs, tooltip, etc.)
 - **Lucide React**: Icon library for consistent iconography
+- **qrcode.react**: QR code generation for VPN configuration sharing
 - **cmdk**: Command palette component for search interfaces
 - **vaul**: Drawer component for mobile-friendly overlays
 - **embla-carousel-react**: Carousel/slider functionality
@@ -168,8 +187,33 @@ Preferred communication style: Simple, everyday language.
 - **@replit/vite-plugin-cartographer**: Replit-specific development tooling
 - **@replit/vite-plugin-dev-banner**: Development environment indicators
 
+## Recent Changes (October 26, 2025)
+
+**Telegram 2FA Implementation**
+- Added complete Telegram Bot API integration in `server/telegram-bot.ts`
+- Implemented webhook endpoint for bot message handling
+- Created API routes for 2FA: link account, enable/disable, send/verify codes
+- Built frontend components: Telegram2FASettings, Verify2FA page
+- Updated login flow to handle 2FA challenge verification
+- Added pending session storage for secure 2FA login flow
+
+**VPN Configuration UX Improvements**
+- Created VpnConfigCard component with QR code display
+- Integrated qrcode.react library for QR code generation
+- Added one-click copy functionality for configuration keys
+- Built comprehensive instruction dialogs with tabs for different platforms
+- Documented v2raytun setup process (QR scan and manual import)
+- Included instructions for v2rayNG, Clash, and other VPN clients
+
+**Dashboard Enhancements**
+- Integrated Telegram2FASettings component in settings tab
+- Replaced simple VPN config display with rich VpnConfigCard components
+- Added verify-2fa route in App.tsx for challenge verification flow
+
 ### Future Integration Points
 - PostgreSQL migration path via Drizzle ORM configuration
-- Telegram bot integration (schema supports `telegram_id` and `telegram_username`)
+- ✅ **Telegram bot integration** - Implemented with 2FA system
 - Payment gateway integration (transaction logging infrastructure in place)
 - Multi-server VPN network expansion (server management system ready)
+- Configure Telegram webhook URL in production deployment
+- Add automated tests for 2FA login flow
