@@ -10,10 +10,19 @@ import {
   insertTariffSchema,
   insertPromocodeSchema,
 } from "@shared/schema";
+import {
+  handleTelegramUpdate,
+  sendTelegramMessage,
+  generateLinkCode,
+  generate2FACode,
+  type TelegramUpdate,
+} from "./telegram-bot";
 
 declare module "express-session" {
   interface SessionData {
     userId?: number;
+    requires2FA?: boolean;
+    pendingUserId?: number;
   }
 }
 
@@ -95,6 +104,31 @@ export function registerRoutes(app: Express): Server {
       const isValidPassword = await bcrypt.compare(validatedData.password, user.password);
       if (!isValidPassword) {
         return res.status(401).json({ message: "Неверный email или пароль" });
+      }
+
+      if (user.telegram_2fa_enabled === 1 && user.telegram_id) {
+        const code = generate2FACode();
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+        storage.users.update(user.id, {
+          twofactor_challenge_code: code,
+          twofactor_challenge_expires_at: expiresAt,
+        });
+
+        await sendTelegramMessage(
+          user.telegram_id,
+          `🔐 <b>Код для входа в ARMT VPN:</b>\n\n` +
+          `<code>${code}</code>\n\n` +
+          `Код действителен 5 минут.`
+        );
+
+        req.session.requires2FA = true;
+        req.session.pendingUserId = user.id;
+
+        return res.json({
+          requires2FA: true,
+          message: "Код отправлен в Telegram",
+        });
       }
 
       req.session.userId = user.id;
@@ -391,6 +425,201 @@ export function registerRoutes(app: Express): Server {
       res.json(userWithoutPassword);
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Ошибка обновления пользователя" });
+    }
+  });
+
+  app.post("/api/telegram/verify-2fa", async (req, res) => {
+    try {
+      const { code } = req.body;
+
+      if (!req.session.requires2FA || !req.session.pendingUserId) {
+        return res.status(400).json({ message: "Сессия 2FA не найдена" });
+      }
+
+      const user = storage.users.findById(req.session.pendingUserId);
+      if (!user) {
+        return res.status(404).json({ message: "Пользователь не найден" });
+      }
+
+      if (!user.twofactor_challenge_code || !user.twofactor_challenge_expires_at) {
+        return res.status(400).json({ message: "Код не найден" });
+      }
+
+      const expiresAt = new Date(user.twofactor_challenge_expires_at);
+      if (expiresAt < new Date()) {
+        return res.status(400).json({ message: "Код истек" });
+      }
+
+      if (code !== user.twofactor_challenge_code) {
+        return res.status(401).json({ message: "Неверный код" });
+      }
+
+      storage.users.update(user.id, {
+        twofactor_challenge_code: null,
+        twofactor_challenge_expires_at: null,
+      });
+
+      req.session.userId = user.id;
+      req.session.requires2FA = undefined;
+      req.session.pendingUserId = undefined;
+
+      const { password, ...userWithoutPassword } = user;
+      res.json({ user: userWithoutPassword });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка верификации" });
+    }
+  });
+
+  app.post("/api/telegram/send-code", async (req, res) => {
+    try {
+      if (!req.session.requires2FA || !req.session.pendingUserId) {
+        return res.status(400).json({ message: "Сессия 2FA не найдена" });
+      }
+
+      const user = storage.users.findById(req.session.pendingUserId);
+      if (!user || !user.telegram_id) {
+        return res.status(404).json({ message: "Пользователь не найден" });
+      }
+
+      const code = generate2FACode();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+      storage.users.update(user.id, {
+        twofactor_challenge_code: code,
+        twofactor_challenge_expires_at: expiresAt,
+      });
+
+      await sendTelegramMessage(
+        user.telegram_id,
+        `🔐 <b>Код для входа в ARMT VPN:</b>\n\n` +
+        `<code>${code}</code>\n\n` +
+        `Код действителен 5 минут.`
+      );
+
+      res.json({ message: "Код отправлен в Telegram" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка отправки кода" });
+    }
+  });
+
+  app.post("/api/telegram/link", requireAuth, async (req, res) => {
+    try {
+      const { linkCode } = req.body;
+      const userId = req.session.userId!;
+
+      if (!linkCode || linkCode.length !== 8) {
+        return res.status(400).json({ message: "Неверный формат кода" });
+      }
+
+      const user = storage.users.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "Пользователь не найден" });
+      }
+
+      const telegramUser = storage.users.list().find(
+        u => u.telegram_link_code === linkCode.toUpperCase() && 
+             u.telegram_id && 
+             u.id !== userId
+      );
+
+      if (!telegramUser || !telegramUser.telegram_link_expires_at) {
+        return res.status(404).json({ message: "Код не найден или истек" });
+      }
+
+      const expiresAt = new Date(telegramUser.telegram_link_expires_at);
+      if (expiresAt < new Date()) {
+        return res.status(400).json({ message: "Код истек" });
+      }
+
+      storage.users.update(userId, {
+        telegram_id: telegramUser.telegram_id,
+        telegram_username: telegramUser.telegram_username,
+        telegram_link_code: null,
+        telegram_link_expires_at: null,
+      });
+
+      if (telegramUser.email === null && telegramUser.password === null) {
+        storage.users.update(telegramUser.id, {
+          telegram_link_code: null,
+          telegram_link_expires_at: null,
+        });
+      }
+
+      if (telegramUser.telegram_id) {
+        await sendTelegramMessage(
+          telegramUser.telegram_id,
+          "✅ Ваш аккаунт успешно связан с ARMT VPN!"
+        );
+      }
+
+      res.json({ message: "Аккаунт успешно связан с Telegram" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка связывания" });
+    }
+  });
+
+  app.post("/api/telegram/enable-2fa", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const user = storage.users.findById(userId);
+
+      if (!user) {
+        return res.status(404).json({ message: "Пользователь не найден" });
+      }
+
+      if (!user.telegram_id) {
+        return res.status(400).json({ message: "Сначала свяжите аккаунт с Telegram" });
+      }
+
+      storage.users.update(userId, {
+        telegram_2fa_enabled: 1,
+      });
+
+      await sendTelegramMessage(
+        user.telegram_id,
+        "🔐 Двухфакторная аутентификация включена для вашего аккаунта ARMT VPN."
+      );
+
+      res.json({ message: "2FA успешно включена" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка включения 2FA" });
+    }
+  });
+
+  app.post("/api/telegram/disable-2fa", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const user = storage.users.findById(userId);
+
+      if (!user) {
+        return res.status(404).json({ message: "Пользователь не найден" });
+      }
+
+      storage.users.update(userId, {
+        telegram_2fa_enabled: 0,
+      });
+
+      if (user.telegram_id) {
+        await sendTelegramMessage(
+          user.telegram_id,
+          "🔓 Двухфакторная аутентификация отключена для вашего аккаунта ARMT VPN."
+        );
+      }
+
+      res.json({ message: "2FA успешно отключена" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка отключения 2FA" });
+    }
+  });
+
+  app.post("/api/telegram/webhook", async (req, res) => {
+    try {
+      const update: TelegramUpdate = req.body;
+      await handleTelegramUpdate(update);
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error("Webhook error:", error);
+      res.status(500).json({ ok: false });
     }
   });
 

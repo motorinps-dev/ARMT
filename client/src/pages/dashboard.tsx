@@ -23,6 +23,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Telegram2FASettings } from "@/components/telegram-2fa-settings";
+import { VpnConfigCard } from "@/components/vpn-config-card";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { User, VpnProfile, Tariff, Referral, Transaction } from "@shared/schema";
 
@@ -335,45 +337,17 @@ export default function Dashboard() {
                 )}
 
                 {vpnProfiles.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Database className="h-5 w-5" />
-                        VPN Конфигурации
-                      </CardTitle>
-                      <CardDescription>
-                        Ваши активные VPN подключения
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Database className="h-5 w-5" />
+                      <h3 className="text-lg font-semibold">VPN Конфигурации</h3>
+                    </div>
+                    <div className="grid gap-4">
                       {vpnProfiles.map((profile) => (
-                        <div key={profile.id} className="p-4 bg-muted/50 rounded-md space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                              <span className="font-medium">Сервер #{profile.server_id}</span>
-                            </div>
-                            <Badge variant="outline" className="text-xs">
-                              {new Date(profile.created_at).toLocaleDateString('ru-RU')}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <code className="flex-1 text-xs bg-background p-2 rounded border border-border overflow-x-auto font-mono">
-                              {profile.config_link}
-                            </code>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => copyToClipboard(profile.config_link)}
-                              data-testid={`button-copy-config-${profile.id}`}
-                            >
-                              {copiedConfig ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                            </Button>
-                          </div>
-                        </div>
+                        <VpnConfigCard key={profile.id} profile={profile} />
                       ))}
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 )}
 
                 {vpnProfiles.length === 0 && !isSubscriptionActive && (
@@ -656,33 +630,7 @@ export default function Dashboard() {
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Telegram интеграция</CardTitle>
-                    <CardDescription>
-                      Привяжите ваш Telegram для управления подпиской через бота
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {user?.telegram_id ? (
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
-                          Подключено
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          ID: {user.telegram_id}
-                        </span>
-                      </div>
-                    ) : (
-                      <Button
-                        onClick={() => window.open('https://t.me/armt_robot', '_blank')}
-                        data-testid="button-connect-telegram"
-                      >
-                        Подключить Telegram
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
+                <Telegram2FASettings user={user} />
               </div>
             )}
           </div>

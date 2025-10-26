@@ -39,6 +39,15 @@ export default function Login() {
 
       const result = await response.json();
       
+      if (result.requires2FA) {
+        toast({
+          title: "Требуется 2FA",
+          description: result.message || "Код отправлен в Telegram",
+        });
+        setLocation("/verify-2fa");
+        return;
+      }
+
       toast({
         title: "Успешный вход",
         description: "Добро пожаловать!",
