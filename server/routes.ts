@@ -6,10 +6,13 @@ import {
   insertUserSchema,
   loginSchema,
   registerSchema,
+  changePasswordSchema,
+  changeEmailSchema,
   insertServerSchema,
   insertTariffSchema,
   insertPromocodeSchema,
   insertSupportTicketSchema,
+  updateSupportTicketSchema,
 } from "@shared/schema";
 import {
   handleTelegramUpdate,
@@ -198,6 +201,57 @@ export function registerRoutes(app: Express): Server {
       });
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Ошибка обновления профиля" });
+    }
+  });
+
+  app.post("/api/user/change-password", requireAuth, async (req, res) => {
+    try {
+      const validatedData = changePasswordSchema.parse(req.body);
+      const userId = req.session.userId!;
+      const user = storage.users.findById(userId);
+
+      if (!user || !user.password) {
+        return res.status(404).json({ message: "Пользователь не найден" });
+      }
+
+      const isValidPassword = await bcrypt.compare(validatedData.current_password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Неверный текущий пароль" });
+      }
+
+      const hashedPassword = await bcrypt.hash(validatedData.new_password, 10);
+      storage.users.update(userId, { password: hashedPassword });
+
+      res.json({ message: "Пароль успешно изменен" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка смены пароля" });
+    }
+  });
+
+  app.post("/api/user/change-email", requireAuth, async (req, res) => {
+    try {
+      const validatedData = changeEmailSchema.parse(req.body);
+      const userId = req.session.userId!;
+      const user = storage.users.findById(userId);
+
+      if (!user || !user.password) {
+        return res.status(404).json({ message: "Пользователь не найден" });
+      }
+
+      const isValidPassword = await bcrypt.compare(validatedData.password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Неверный пароль" });
+      }
+
+      const existingUser = storage.users.findByEmail(validatedData.new_email);
+      if (existingUser) {
+        return res.status(400).json({ message: "Email уже используется" });
+      }
+
+      storage.users.update(userId, { email: validatedData.new_email });
+      res.json({ message: "Email успешно изменен" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка смены email" });
     }
   });
 
@@ -500,7 +554,8 @@ export function registerRoutes(app: Express): Server {
   app.patch("/api/admin/support-tickets/:id", requireAdmin, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const ticket = storage.supportTickets.update(id, req.body);
+      const validatedData = updateSupportTicketSchema.parse(req.body);
+      const ticket = storage.supportTickets.update(id, validatedData);
       if (!ticket) {
         return res.status(404).json({ message: "Тикет не найден" });
       }

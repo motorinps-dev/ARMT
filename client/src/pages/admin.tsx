@@ -32,7 +32,7 @@ export default function Admin() {
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
 
-  const { data: stats, isLoading } = useQuery<Stats>({
+  const { data: stats, isLoading, error } = useQuery<Stats>({
     queryKey: ["/api/admin/stats"],
   });
 
@@ -45,6 +45,24 @@ export default function Admin() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Загрузка...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="w-96">
+          <CardHeader>
+            <CardTitle>Доступ запрещен</CardTitle>
+            <CardDescription>У вас нет прав для доступа к админ-панели</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => setLocation("/dashboard")} className="w-full" data-testid="button-back-dashboard">
+              Вернуться в личный кабинет
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

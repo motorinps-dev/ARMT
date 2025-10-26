@@ -42,10 +42,26 @@ export const registerSchema = z.object({
   telegram_id: z.number().optional(),
 });
 
+export const changePasswordSchema = z.object({
+  current_password: z.string().min(6),
+  new_password: z.string().min(6),
+  confirm_password: z.string().min(6),
+}).refine((data) => data.new_password === data.confirm_password, {
+  message: "Пароли не совпадают",
+  path: ["confirm_password"],
+});
+
+export const changeEmailSchema = z.object({
+  new_email: z.string().email(),
+  password: z.string().min(6),
+});
+
 export type User = z.infer<typeof userSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type LoginData = z.infer<typeof loginSchema>;
 export type RegisterData = z.infer<typeof registerSchema>;
+export type ChangePasswordData = z.infer<typeof changePasswordSchema>;
+export type ChangeEmailData = z.infer<typeof changeEmailSchema>;
 
 // ============================================
 // SERVER SCHEMAS
@@ -233,5 +249,12 @@ export const insertSupportTicketSchema = supportTicketSchema.omit({
   priority: z.enum(['low', 'medium', 'high']).default('medium').optional(),
 });
 
+export const updateSupportTicketSchema = z.object({
+  status: z.enum(['open', 'in_progress', 'closed']).optional(),
+  priority: z.enum(['low', 'medium', 'high']).optional(),
+  admin_reply: z.string().optional(),
+});
+
 export type SupportTicket = z.infer<typeof supportTicketSchema>;
 export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
+export type UpdateSupportTicket = z.infer<typeof updateSupportTicketSchema>;
