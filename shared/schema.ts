@@ -32,28 +32,28 @@ export const insertUserSchema = userSchema.omit({
 }).partial();
 
 export const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
+  email: z.string().email().trim().max(255, "Email не должен превышать 255 символов"),
+  password: z.string().min(6, "Пароль должен содержать минимум 6 символов").max(128, "Пароль не должен превышать 128 символов"),
 });
 
 export const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
+  email: z.string().email().trim().max(255, "Email не должен превышать 255 символов"),
+  password: z.string().min(6, "Пароль должен содержать минимум 6 символов").max(128, "Пароль не должен превышать 128 символов"),
   telegram_id: z.number().optional(),
 });
 
 export const changePasswordSchema = z.object({
-  current_password: z.string().min(6),
-  new_password: z.string().min(6),
-  confirm_password: z.string().min(6),
+  current_password: z.string().min(6, "Пароль должен содержать минимум 6 символов").max(128, "Пароль не должен превышать 128 символов"),
+  new_password: z.string().min(6, "Пароль должен содержать минимум 6 символов").max(128, "Пароль не должен превышать 128 символов"),
+  confirm_password: z.string().min(6, "Пароль должен содержать минимум 6 символов").max(128, "Пароль не должен превышать 128 символов"),
 }).refine((data) => data.new_password === data.confirm_password, {
   message: "Пароли не совпадают",
   path: ["confirm_password"],
 });
 
 export const changeEmailSchema = z.object({
-  new_email: z.string().email(),
-  password: z.string().min(6),
+  new_email: z.string().email().trim().max(255, "Email не должен превышать 255 символов"),
+  password: z.string().min(6, "Пароль должен содержать минимум 6 символов").max(128, "Пароль не должен превышать 128 символов"),
 });
 
 export type User = z.infer<typeof userSchema>;
@@ -242,7 +242,7 @@ export const insertSupportTicketSchema = supportTicketSchema.omit({
   created_at: true,
   updated_at: true,
 }).extend({
-  message: z.string(),
+  subject: z.string().min(3, "Тема должна содержать минимум 3 символа").max(200, "Тема не должна превышать 200 символов").trim(),
   status: z.enum(['open', 'in_progress', 'closed']).default('open').optional(),
   priority: z.enum(['low', 'medium', 'high']).default('medium').optional(),
 });
@@ -271,6 +271,8 @@ export const supportMessageSchema = z.object({
 export const insertSupportMessageSchema = supportMessageSchema.omit({
   id: true,
   created_at: true,
+}).extend({
+  message: z.string().min(1, "Сообщение не может быть пустым").max(5000, "Сообщение не должно превышать 5000 символов").trim(),
 });
 
 export type SupportMessage = z.infer<typeof supportMessageSchema>;

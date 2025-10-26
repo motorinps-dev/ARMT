@@ -29,8 +29,9 @@ import { Telegram2FASettings } from "@/components/telegram-2fa-settings";
 import { VpnConfigCard } from "@/components/vpn-config-card";
 import { AccountSecurity } from "@/components/account-security";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { User, VpnProfile, Tariff, Referral, Transaction, SupportTicket, InsertSupportTicket } from "@shared/schema";
+import type { User, VpnProfile, Tariff, Referral, Transaction, SupportTicket, SupportMessage, InsertSupportTicket } from "@shared/schema";
 import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -887,27 +888,44 @@ function TariffsTab({ user }: { user: User | undefined }) {
 function SupportTab({ user }: { user: User | undefined }) {
   const { toast } = useToast();
   const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState("");
+  const [initialMessage, setInitialMessage] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [chatDialogOpen, setChatDialogOpen] = useState(false);
+  const [newMessage, setNewMessage] = useState("");
 
   const { data: tickets = [], isLoading } = useQuery<SupportTicket[]>({
     queryKey: ["/api/support-tickets"],
     enabled: !!user,
   });
 
-  const createTicketMutation = useMutation({
-    mutationFn: async (data: { subject: string; message: string }) => {
-      return apiRequest("POST", "/api/support-tickets", data);
+  const { data: messages = [], isLoading: messagesLoading } = useQuery<SupportMessage[]>({
+    queryKey: ["/api/support-tickets", selectedTicket?.id, "messages"],
+    enabled: !!selectedTicket,
+  });
+
+  const createTicketMutation = useMutation<SupportTicket, Error, { subject: string }>({
+    mutationFn: async (data: { subject: string }) => {
+      const response = await apiRequest("POST", "/api/support-tickets", data);
+      return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (newTicket) => {
       queryClient.invalidateQueries({ queryKey: ["/api/support-tickets"] });
+      
+      if (initialMessage.trim()) {
+        sendMessageMutation.mutate({
+          ticketId: newTicket.id,
+          message: initialMessage.trim(),
+        });
+      }
+      
       toast({
         title: "Тикет создан",
         description: "Ваш запрос в поддержку отправлен. Мы ответим в ближайшее время.",
       });
       setCreateDialogOpen(false);
       setSubject("");
-      setMessage("");
+      setInitialMessage("");
     },
     onError: (error: any) => {
       toast({
@@ -918,16 +936,50 @@ function SupportTab({ user }: { user: User | undefined }) {
     },
   });
 
-  const handleCreateTicket = () => {
-    if (!subject.trim() || !message.trim()) {
+  const sendMessageMutation = useMutation({
+    mutationFn: async ({ ticketId, message }: { ticketId: number; message: string }) => {
+      return apiRequest("POST", `/api/support-tickets/${ticketId}/messages`, { message });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/support-tickets", selectedTicket?.id, "messages"] });
+      setNewMessage("");
+      toast({
+        title: "Успех",
+        description: "Сообщение отправлено",
+      });
+    },
+    onError: (error: any) => {
       toast({
         title: "Ошибка",
-        description: "Заполните все поля",
+        description: error.message || "Не удалось отправить сообщение",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCreateTicket = () => {
+    if (!subject.trim()) {
+      toast({
+        title: "Ошибка",
+        description: "Заполните тему тикета",
         variant: "destructive",
       });
       return;
     }
-    createTicketMutation.mutate({ subject: subject.trim(), message: message.trim() });
+    createTicketMutation.mutate({ subject: subject.trim() });
+  };
+
+  const handleOpenChat = (ticket: SupportTicket) => {
+    setSelectedTicket(ticket);
+    setChatDialogOpen(true);
+  };
+
+  const handleSendMessage = () => {
+    if (!selectedTicket || !newMessage.trim()) return;
+    sendMessageMutation.mutate({
+      ticketId: selectedTicket.id,
+      message: newMessage.trim(),
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -971,7 +1023,7 @@ function SupportTab({ user }: { user: User | undefined }) {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Тикеты поддержки</CardTitle>
-              <CardDescription>Создавайте запросы и отслеживайте их статус</CardDescription>
+              <CardDescription>Создавайте запросы и общайтесь с поддержкой</CardDescription>
             </div>
             <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
               <Button onClick={() => setCreateDialogOpen(true)} data-testid="button-create-ticket">
@@ -996,11 +1048,11 @@ function SupportTab({ user }: { user: User | undefined }) {
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium mb-2 block">Сообщение</label>
+                    <label className="text-sm font-medium mb-2 block">Первое сообщение (необязательно)</label>
                     <Textarea
                       placeholder="Подробное описание вашего вопроса или проблемы"
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
+                      value={initialMessage}
+                      onChange={(e) => setInitialMessage(e.target.value)}
                       rows={5}
                       data-testid="textarea-ticket-message"
                     />
@@ -1039,7 +1091,10 @@ function SupportTab({ user }: { user: User | undefined }) {
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <CardTitle className="text-lg">{ticket.subject}</CardTitle>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <MessageSquare className="h-5 w-5" />
+                          {ticket.subject}
+                        </CardTitle>
                         <CardDescription className="mt-1">
                           Создан: {new Date(ticket.created_at).toLocaleString('ru-RU')}
                         </CardDescription>
@@ -1051,20 +1106,14 @@ function SupportTab({ user }: { user: User | undefined }) {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div>
-                      <div className="text-sm font-medium mb-1">Ваше сообщение:</div>
-                      <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
-                        {ticket.message}
-                      </div>
-                    </div>
-                    {ticket.admin_reply && (
-                      <div>
-                        <div className="text-sm font-medium mb-1 text-primary">Ответ поддержки:</div>
-                        <div className="text-sm bg-primary/10 p-3 rounded-md">
-                          {ticket.admin_reply}
-                        </div>
-                      </div>
-                    )}
+                    <Button
+                      size="sm"
+                      onClick={() => handleOpenChat(ticket)}
+                      data-testid={`button-open-chat-${ticket.id}`}
+                    >
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      Открыть чат
+                    </Button>
                   </CardContent>
                 </Card>
               ))}
@@ -1072,6 +1121,77 @@ function SupportTab({ user }: { user: User | undefined }) {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col" data-testid="dialog-user-chat">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedTicket && `Тикет #${selectedTicket.id}: ${selectedTicket.subject}`}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedTicket && `Статус: ${selectedTicket.status === 'open' ? 'Открыт' : selectedTicket.status === 'in_progress' ? 'В работе' : 'Закрыт'}`}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="flex-1 h-[400px] border rounded-md p-4" data-testid="user-chat-messages">
+            {messagesLoading ? (
+              <div className="text-center text-muted-foreground">Загрузка сообщений...</div>
+            ) : messages.length === 0 ? (
+              <div className="text-center text-muted-foreground">Нет сообщений. Начните диалог!</div>
+            ) : (
+              <div className="space-y-4">
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex ${msg.is_admin === 1 ? 'justify-start' : 'justify-end'}`}
+                    data-testid={`user-message-${msg.id}`}
+                  >
+                    <div
+                      className={`max-w-[80%] rounded-lg p-3 ${
+                        msg.is_admin === 1
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted'
+                      }`}
+                    >
+                      <div className="text-xs opacity-70 mb-1">
+                        {msg.is_admin === 1 ? 'Поддержка' : 'Вы'} •{' '}
+                        {new Date(msg.created_at).toLocaleString('ru-RU')}
+                      </div>
+                      <div className="text-sm whitespace-pre-wrap">{msg.message}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+
+          {selectedTicket?.status !== 'closed' && (
+            <div className="flex gap-2 pt-4">
+              <Textarea
+                placeholder="Введите ваше сообщение..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                rows={3}
+                data-testid="textarea-user-message"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+              />
+              <Button
+                onClick={handleSendMessage}
+                disabled={sendMessageMutation.isPending || !newMessage.trim()}
+                data-testid="button-send-user-message"
+                className="self-end"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
