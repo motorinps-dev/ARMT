@@ -5,6 +5,21 @@ async function seed() {
   console.log("Seeding database...");
 
   try {
+    const ownerEmail = "owner@armt.ru";
+    const existingOwner = storage.users.findByEmail(ownerEmail);
+    
+    if (!existingOwner) {
+      const hashedPassword = await bcrypt.hash("owner123", 10);
+      const owner = storage.users.create({
+        email: ownerEmail,
+        password: hashedPassword,
+        is_admin: 1,
+      });
+      console.log(`✓ Created owner admin user: ${ownerEmail} / owner123`);
+    } else {
+      console.log("✓ Owner admin user already exists");
+    }
+
     const adminEmail = "admin@armt.vpn";
     const existingAdmin = storage.users.findByEmail(adminEmail);
     
@@ -47,8 +62,8 @@ async function seed() {
 
     console.log("\n✅ Database seeded successfully!");
     console.log("\n📝 Admin credentials:");
-    console.log("   Email: admin@armt.vpn");
-    console.log("   Password: admin123");
+    console.log("   Owner: owner@armt.ru / owner123");
+    console.log("   Admin: admin@armt.vpn / admin123");
   } catch (error) {
     console.error("❌ Error seeding database:", error);
   }
