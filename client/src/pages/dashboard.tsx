@@ -27,6 +27,7 @@ import { useLocation } from "wouter";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Telegram2FASettings } from "@/components/telegram-2fa-settings";
 import { VpnConfigCard } from "@/components/vpn-config-card";
+import { AccountSecurity } from "@/components/account-security";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { User, VpnProfile, Tariff, Referral, Transaction, SupportTicket, InsertSupportTicket } from "@shared/schema";
 import { Textarea } from "@/components/ui/textarea";
@@ -644,6 +645,8 @@ export default function Dashboard() {
                     </div>
                   </CardContent>
                 </Card>
+
+                <AccountSecurity />
 
                 <Telegram2FASettings user={user} />
               </div>
