@@ -1,10 +1,25 @@
 import { Shield, Zap, Lock, Globe, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useQuery } from "@tanstack/react-query";
+import type { User } from "@shared/schema";
 
 export default function Landing() {
+  const [, setLocation] = useLocation();
+  const { data: user } = useQuery<User>({
+    queryKey: ["/api/user/me"],
+    retry: false,
+  });
+
+  const handleSelectPlan = (e: React.MouseEvent) => {
+    if (user) {
+      e.preventDefault();
+      setLocation("/dashboard?tab=tariffs");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-background">
       <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-lg border-b border-border">
@@ -28,16 +43,26 @@ export default function Landing() {
               </a>
             </div>
             <ThemeToggle />
-            <Link href="/login" data-testid="link-login">
-              <Button variant="outline" size="sm" data-testid="button-login-nav">
-                Войти
-              </Button>
-            </Link>
-            <Link href="/register" data-testid="link-register">
-              <Button size="sm" data-testid="button-register-nav">
-                Регистрация
-              </Button>
-            </Link>
+            {user ? (
+              <Link href="/dashboard" data-testid="link-dashboard">
+                <Button size="sm" data-testid="button-dashboard-nav">
+                  Личный кабинет
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" data-testid="link-login">
+                  <Button variant="outline" size="sm" data-testid="button-login-nav">
+                    Войти
+                  </Button>
+                </Link>
+                <Link href="/register" data-testid="link-register">
+                  <Button size="sm" data-testid="button-register-nav">
+                    Регистрация
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -53,7 +78,7 @@ export default function Landing() {
                 Защитите свою конфиденциальность и получите доступ к любому контенту без ограничений
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link href="/register" data-testid="link-hero-register">
+                <Link href={user ? "/dashboard?tab=tariffs" : "/register"} onClick={handleSelectPlan} data-testid="link-hero-register">
                   <Button size="lg" className="w-full sm:w-auto group" data-testid="button-hero-register">
                     Выбрать тариф
                     <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
@@ -142,7 +167,7 @@ export default function Landing() {
                   <span>24/7 поддержка</span>
                 </li>
               </ul>
-              <Link href="/register" data-testid="link-pricing-1month">
+              <Link href={user ? "/dashboard?tab=tariffs" : "/register"} onClick={handleSelectPlan} data-testid="link-pricing-1month">
                 <Button className="w-full" data-testid="button-pricing-1month">Выбрать</Button>
               </Link>
             </Card>
@@ -171,7 +196,7 @@ export default function Landing() {
                   <span>24/7 поддержка</span>
                 </li>
               </ul>
-              <Link href="/register" data-testid="link-pricing-3months">
+              <Link href={user ? "/dashboard?tab=tariffs" : "/register"} onClick={handleSelectPlan} data-testid="link-pricing-3months">
                 <Button className="w-full" data-testid="button-pricing-3months">Выбрать</Button>
               </Link>
             </Card>
@@ -197,7 +222,7 @@ export default function Landing() {
                   <span>24/7 поддержка</span>
                 </li>
               </ul>
-              <Link href="/register" data-testid="link-pricing-12months">
+              <Link href={user ? "/dashboard?tab=tariffs" : "/register"} onClick={handleSelectPlan} data-testid="link-pricing-12months">
                 <Button className="w-full" data-testid="button-pricing-12months">Выбрать</Button>
               </Link>
             </Card>

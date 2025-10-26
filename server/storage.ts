@@ -24,12 +24,20 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE,
     password TEXT,
+    nickname TEXT,
     telegram_id INTEGER UNIQUE,
     telegram_username TEXT,
+    telegram_2fa_enabled INTEGER DEFAULT 0,
+    telegram_link_code TEXT,
+    telegram_link_expires_at TEXT,
+    twofactor_challenge_code TEXT,
+    twofactor_challenge_expires_at TEXT,
     main_balance REAL DEFAULT 0,
     referral_balance REAL DEFAULT 0,
     subscription_type TEXT,
     expires_at TEXT,
+    has_used_trial INTEGER DEFAULT 0,
+    referrer_id INTEGER,
     is_admin INTEGER DEFAULT 0,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
@@ -107,6 +115,28 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
 `);
 
+function addColumnIfNotExists(tableName: string, columnName: string, columnDef: string) {
+  try {
+    const columns = db.prepare(`PRAGMA table_info(${tableName})`).all() as any[];
+    const columnExists = columns.some((col: any) => col.name === columnName);
+    if (!columnExists) {
+      db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDef}`);
+      console.log(`Added column ${columnName} to ${tableName}`);
+    }
+  } catch (error) {
+    console.error(`Error adding column ${columnName} to ${tableName}:`, error);
+  }
+}
+
+addColumnIfNotExists('users', 'nickname', 'TEXT');
+addColumnIfNotExists('users', 'telegram_2fa_enabled', 'INTEGER DEFAULT 0');
+addColumnIfNotExists('users', 'telegram_link_code', 'TEXT');
+addColumnIfNotExists('users', 'telegram_link_expires_at', 'TEXT');
+addColumnIfNotExists('users', 'twofactor_challenge_code', 'TEXT');
+addColumnIfNotExists('users', 'twofactor_challenge_expires_at', 'TEXT');
+addColumnIfNotExists('users', 'has_used_trial', 'INTEGER DEFAULT 0');
+addColumnIfNotExists('users', 'referrer_id', 'INTEGER');
+
 export interface IStorage {
   users: {
     create(user: InsertUser): User;
@@ -125,6 +155,7 @@ export interface IStorage {
   };
   tariffs: {
     create(tariff: InsertTariff): Tariff;
+    findById(id: number): Tariff | undefined;
     findByKey(key: string): Tariff | undefined;
     list(): Tariff[];
     update(id: number, data: Partial<Tariff>): Tariff | undefined;
@@ -260,6 +291,11 @@ const storage: IStorage = {
       `);
       const result = stmt.run(tariff);
       return storage.tariffs.findByKey(tariff.key)!;
+    },
+
+    findById(id: number): Tariff | undefined {
+      const stmt = db.prepare("SELECT * FROM tariffs WHERE id = ?");
+      return stmt.get(id) as Tariff | undefined;
     },
 
     findByKey(key: string): Tariff | undefined {

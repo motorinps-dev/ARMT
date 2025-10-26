@@ -124,6 +124,48 @@ export function registerRoutes(app: Express): Server {
     res.json(userWithoutPassword);
   });
 
+  app.patch("/api/user/profile", requireAuth, async (req, res) => {
+    try {
+      let { nickname } = req.body;
+      const userId = req.session.userId!;
+
+      if (typeof nickname !== 'string') {
+        return res.status(400).json({ message: "Никнейм должен быть строкой" });
+      }
+
+      nickname = nickname.trim();
+
+      if (nickname.length < 3) {
+        return res.status(400).json({ message: "Никнейм должен содержать минимум 3 символа" });
+      }
+
+      if (nickname.length > 20) {
+        return res.status(400).json({ message: "Никнейм не должен превышать 20 символов" });
+      }
+
+      const existingUser = storage.users.list().find(u => 
+        u.nickname === nickname && u.id !== userId
+      );
+      if (existingUser) {
+        return res.status(400).json({ message: "Никнейм уже занят" });
+      }
+
+      const updatedUser = storage.users.update(userId, { nickname });
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: "Пользователь не найден" });
+      }
+
+      const { password, ...userWithoutPassword } = updatedUser;
+      res.json({
+        message: "Профиль успешно обновлен",
+        user: userWithoutPassword,
+      });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка обновления профиля" });
+    }
+  });
+
   app.get("/api/vpn/profiles", requireAuth, (req, res) => {
     const profiles = storage.vpnProfiles.findByUserId(req.session.userId!);
     res.json(profiles);
@@ -224,6 +266,61 @@ export function registerRoutes(app: Express): Server {
       res.json({ message: "Сервер удален" });
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Ошибка удаления сервера" });
+    }
+  });
+
+  app.get("/api/tariffs", requireAuth, (req, res) => {
+    const tariffs = storage.tariffs.list().filter(t => t.is_active === 1);
+    res.json(tariffs);
+  });
+
+  app.post("/api/subscription/purchase", requireAuth, async (req, res) => {
+    try {
+      const { tariffId } = req.body;
+      
+      if (!tariffId) {
+        return res.status(400).json({ message: "Не указан тариф" });
+      }
+      
+      const tariff = storage.tariffs.findById(tariffId);
+      if (!tariff) {
+        return res.status(404).json({ message: "Тариф не найден" });
+      }
+      
+      const user = storage.users.findById(req.session.userId!);
+      if (!user) {
+        return res.status(404).json({ message: "Пользователь не найден" });
+      }
+      
+      if (user.main_balance < tariff.price) {
+        return res.status(400).json({ message: "Недостаточно средств на балансе" });
+      }
+      
+      const newBalance = (user.main_balance || 0) - tariff.price;
+      const currentExpires = user.expires_at && new Date(user.expires_at) > new Date() 
+        ? new Date(user.expires_at) 
+        : new Date();
+      
+      const newExpires = new Date(currentExpires.getTime() + tariff.days * 24 * 60 * 60 * 1000);
+      
+      storage.users.update(req.session.userId!, {
+        main_balance: newBalance,
+        subscription_type: tariff.key,
+        expires_at: newExpires.toISOString(),
+      });
+      
+      storage.transactions.create({
+        user_id: req.session.userId!,
+        amount: -tariff.price,
+        description: `Покупка подписки "${tariff.name}"`,
+      });
+      
+      res.json({ 
+        message: "Подписка успешно активирована",
+        expires_at: newExpires.toISOString(),
+      });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка покупки подписки" });
     }
   });
 
