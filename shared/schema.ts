@@ -231,10 +231,8 @@ export const supportTicketSchema = z.object({
   id: z.number(),
   user_id: z.number(),
   subject: z.string(),
-  message: z.string(),
   status: z.enum(['open', 'in_progress', 'closed']).default('open'),
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
-  admin_reply: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -243,8 +241,8 @@ export const insertSupportTicketSchema = supportTicketSchema.omit({
   id: true, 
   created_at: true,
   updated_at: true,
-  admin_reply: true,
 }).extend({
+  message: z.string(),
   status: z.enum(['open', 'in_progress', 'closed']).default('open').optional(),
   priority: z.enum(['low', 'medium', 'high']).default('medium').optional(),
 });
@@ -252,9 +250,28 @@ export const insertSupportTicketSchema = supportTicketSchema.omit({
 export const updateSupportTicketSchema = z.object({
   status: z.enum(['open', 'in_progress', 'closed']).optional(),
   priority: z.enum(['low', 'medium', 'high']).optional(),
-  admin_reply: z.string().optional(),
 });
 
 export type SupportTicket = z.infer<typeof supportTicketSchema>;
 export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
 export type UpdateSupportTicket = z.infer<typeof updateSupportTicketSchema>;
+
+// ============================================
+// SUPPORT MESSAGE SCHEMAS (Chat-style)
+// ============================================
+
+export const supportMessageSchema = z.object({
+  id: z.number(),
+  ticket_id: z.number(),
+  is_admin: z.number(),
+  message: z.string(),
+  created_at: z.string(),
+});
+
+export const insertSupportMessageSchema = supportMessageSchema.omit({
+  id: true,
+  created_at: true,
+});
+
+export type SupportMessage = z.infer<typeof supportMessageSchema>;
+export type InsertSupportMessage = z.infer<typeof insertSupportMessageSchema>;

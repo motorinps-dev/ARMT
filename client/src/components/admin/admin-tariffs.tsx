@@ -16,6 +16,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export function AdminTariffs() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingTariff, setEditingTariff] = useState<Tariff | null>(null);
   const { toast } = useToast();
 
   const { data: tariffs = [], isLoading } = useQuery<Tariff[]>({
@@ -23,6 +25,18 @@ export function AdminTariffs() {
   });
 
   const form = useForm<InsertTariff>({
+    resolver: zodResolver(insertTariffSchema),
+    defaultValues: {
+      key: "",
+      name: "",
+      price: 0,
+      days: 30,
+      gb: 1000,
+      is_active: 1,
+    },
+  });
+
+  const editForm = useForm<InsertTariff>({
     resolver: zodResolver(insertTariffSchema),
     defaultValues: {
       key: "",
@@ -55,6 +69,68 @@ export function AdminTariffs() {
       });
     },
   });
+
+  const updateTariffMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertTariff> }) => {
+      return await apiRequest("PATCH", `/api/admin/tariffs/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tariffs"] });
+      toast({
+        title: "Успех",
+        description: "Тариф успешно обновлен",
+      });
+      setIsEditDialogOpen(false);
+      setEditingTariff(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось обновить тариф",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleTariffMutation = useMutation({
+    mutationFn: async ({ id, is_active }: { id: number; is_active: number }) => {
+      return await apiRequest("PATCH", `/api/admin/tariffs/${id}`, { is_active });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tariffs"] });
+      toast({
+        title: "Успех",
+        description: "Статус тарифа изменен",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось изменить статус тарифа",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEditTariff = (tariff: Tariff) => {
+    setEditingTariff(tariff);
+    editForm.reset({
+      key: tariff.key,
+      name: tariff.name,
+      price: tariff.price,
+      days: tariff.days,
+      gb: tariff.gb,
+      is_active: tariff.is_active,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleToggleTariff = (tariff: Tariff) => {
+    toggleTariffMutation.mutate({
+      id: tariff.id,
+      is_active: tariff.is_active === 1 ? 0 : 1,
+    });
+  };
 
   if (isLoading) {
     return <div className="text-center text-muted-foreground">Загрузка...</div>;
@@ -214,10 +290,22 @@ export function AdminTariffs() {
                 </div>
 
                 <div className="flex gap-2 pt-3">
-                  <Button size="sm" variant="outline" className="flex-1" data-testid={`button-edit-tariff-${tariff.id}`}>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="flex-1" 
+                    onClick={() => handleEditTariff(tariff)}
+                    data-testid={`button-edit-tariff-${tariff.id}`}
+                  >
                     Редактировать
                   </Button>
-                  <Button size="sm" variant="outline" data-testid={`button-toggle-tariff-${tariff.id}`}>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => handleToggleTariff(tariff)}
+                    disabled={toggleTariffMutation.isPending}
+                    data-testid={`button-toggle-tariff-${tariff.id}`}
+                  >
                     {tariff.is_active === 1 ? "Деактивировать" : "Активировать"}
                   </Button>
                 </div>
@@ -226,6 +314,101 @@ export function AdminTariffs() {
           ))
         )}
       </div>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Редактировать тариф</DialogTitle>
+            <DialogDescription>
+              Изменить параметры тарифного плана
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit((data) => {
+              if (editingTariff) {
+                updateTariffMutation.mutate({ id: editingTariff.id, data });
+              }
+            })} className="space-y-4 py-4">
+              <FormField
+                control={editForm.control}
+                name="key"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Ключ (уникальный идентификатор)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="6_months" data-testid="input-edit-tariff-key" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Название</FormLabel>
+                    <FormControl>
+                      <Input placeholder="6 Месяцев" data-testid="input-edit-tariff-name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Цена (₽)</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="500" data-testid="input-edit-tariff-price" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="days"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Количество дней</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="186" data-testid="input-edit-tariff-days" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={editForm.control}
+                name="gb"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Трафик (ГБ)</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="6000" data-testid="input-edit-tariff-gb" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex gap-2">
+                <Button type="submit" className="flex-1" disabled={updateTariffMutation.isPending} data-testid="button-update-tariff">
+                  {updateTariffMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Сохранить изменения
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Отмена
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

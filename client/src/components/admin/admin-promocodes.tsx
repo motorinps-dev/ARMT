@@ -16,6 +16,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export function AdminPromocodes() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingPromocode, setEditingPromocode] = useState<Promocode | null>(null);
   const { toast } = useToast();
 
   const { data: promocodes = [], isLoading } = useQuery<Promocode[]>({
@@ -23,6 +25,16 @@ export function AdminPromocodes() {
   });
 
   const form = useForm<InsertPromocode>({
+    resolver: zodResolver(insertPromocodeSchema),
+    defaultValues: {
+      code: "",
+      discount_percent: 10,
+      max_uses: 100,
+      is_active: 1,
+    },
+  });
+
+  const editForm = useForm<InsertPromocode>({
     resolver: zodResolver(insertPromocodeSchema),
     defaultValues: {
       code: "",
@@ -53,6 +65,66 @@ export function AdminPromocodes() {
       });
     },
   });
+
+  const updatePromocodeMutation = useMutation({
+    mutationFn: async ({ code, data }: { code: string; data: Partial<InsertPromocode> }) => {
+      return await apiRequest("PATCH", `/api/admin/promocodes/${code}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/promocodes"] });
+      toast({
+        title: "Успех",
+        description: "Промокод успешно обновлен",
+      });
+      setIsEditDialogOpen(false);
+      setEditingPromocode(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось обновить промокод",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const togglePromocodeMutation = useMutation({
+    mutationFn: async ({ code, is_active }: { code: string; is_active: number }) => {
+      return await apiRequest("PATCH", `/api/admin/promocodes/${code}`, { is_active });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/promocodes"] });
+      toast({
+        title: "Успех",
+        description: "Статус промокода изменен",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось изменить статус промокода",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEditPromocode = (promo: Promocode) => {
+    setEditingPromocode(promo);
+    editForm.reset({
+      code: promo.code,
+      discount_percent: promo.discount_percent,
+      max_uses: promo.max_uses,
+      is_active: promo.is_active,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleTogglePromocode = (promo: Promocode) => {
+    togglePromocodeMutation.mutate({
+      code: promo.code,
+      is_active: promo.is_active === 1 ? 0 : 1,
+    });
+  };
 
   if (isLoading) {
     return <div className="text-center text-muted-foreground">Загрузка...</div>;
@@ -198,10 +270,22 @@ export function AdminPromocodes() {
                 </div>
 
                 <div className="flex gap-2 pt-3">
-                  <Button size="sm" variant="outline" className="flex-1" data-testid={`button-edit-promo-${promo.code}`}>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="flex-1" 
+                    onClick={() => handleEditPromocode(promo)}
+                    data-testid={`button-edit-promo-${promo.code}`}
+                  >
                     Редактировать
                   </Button>
-                  <Button size="sm" variant="outline" data-testid={`button-toggle-promo-${promo.code}`}>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => handleTogglePromocode(promo)}
+                    disabled={togglePromocodeMutation.isPending}
+                    data-testid={`button-toggle-promo-${promo.code}`}
+                  >
                     {promo.is_active === 1 ? "Деактивировать" : "Активировать"}
                   </Button>
                 </div>
@@ -210,6 +294,75 @@ export function AdminPromocodes() {
           ))
         )}
       </div>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Редактировать промокод</DialogTitle>
+            <DialogDescription>
+              Изменить параметры промокода
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit((data) => {
+              if (editingPromocode) {
+                updatePromocodeMutation.mutate({ code: editingPromocode.code, data });
+              }
+            })} className="space-y-4 py-4">
+              <FormField
+                control={editForm.control}
+                name="code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Код промокода</FormLabel>
+                    <FormControl>
+                      <Input placeholder="SUMMER2025" data-testid="input-edit-promo-code" {...field} disabled />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="discount_percent"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Скидка (%)</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="20" min="1" max="100" data-testid="input-edit-discount" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="max_uses"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Максимум использований</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="100" data-testid="input-edit-max-uses" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button type="submit" className="flex-1" disabled={updatePromocodeMutation.isPending} data-testid="button-update-promocode">
+                  {updatePromocodeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Сохранить изменения
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Отмена
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

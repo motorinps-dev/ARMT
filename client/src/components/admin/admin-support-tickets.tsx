@@ -3,24 +3,29 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageSquare, Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { MessageSquare, Clock, CheckCircle, AlertCircle, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { SupportTicket } from "@shared/schema";
+import type { SupportTicket, SupportMessage } from "@shared/schema";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export function AdminSupportTickets() {
   const { toast } = useToast();
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
-  const [replyDialogOpen, setReplyDialogOpen] = useState(false);
-  const [adminReply, setAdminReply] = useState("");
+  const [chatDialogOpen, setChatDialogOpen] = useState(false);
+  const [newMessage, setNewMessage] = useState("");
   const [newStatus, setNewStatus] = useState<string>("");
 
   const { data: tickets = [], isLoading } = useQuery<SupportTicket[]>({
     queryKey: ["/api/admin/support-tickets"],
+  });
+
+  const { data: messages = [], isLoading: messagesLoading } = useQuery<SupportMessage[]>({
+    queryKey: ["/api/support-tickets", selectedTicket?.id, "messages"],
+    enabled: !!selectedTicket,
   });
 
   const updateTicketMutation = useMutation({
@@ -31,12 +36,8 @@ export function AdminSupportTickets() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/support-tickets"] });
       toast({
         title: "Успех",
-        description: "Тикет обновлен",
+        description: "Статус тикета обновлен",
       });
-      setReplyDialogOpen(false);
-      setSelectedTicket(null);
-      setAdminReply("");
-      setNewStatus("");
     },
     onError: (error: any) => {
       toast({
@@ -47,24 +48,46 @@ export function AdminSupportTickets() {
     },
   });
 
-  const handleReplyToTicket = (ticket: SupportTicket) => {
+  const sendMessageMutation = useMutation({
+    mutationFn: async ({ ticketId, message }: { ticketId: number; message: string }) => {
+      return apiRequest("POST", `/api/support-tickets/${ticketId}/messages`, { message });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/support-tickets", selectedTicket?.id, "messages"] });
+      setNewMessage("");
+      toast({
+        title: "Успех",
+        description: "Сообщение отправлено",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось отправить сообщение",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleOpenChat = (ticket: SupportTicket) => {
     setSelectedTicket(ticket);
-    setAdminReply(ticket.admin_reply || "");
     setNewStatus(ticket.status);
-    setReplyDialogOpen(true);
+    setChatDialogOpen(true);
   };
 
-  const handleSaveReply = () => {
+  const handleSendMessage = () => {
+    if (!selectedTicket || !newMessage.trim()) return;
+    sendMessageMutation.mutate({
+      ticketId: selectedTicket.id,
+      message: newMessage.trim(),
+    });
+  };
+
+  const handleUpdateStatus = () => {
     if (!selectedTicket) return;
-
-    const updateData: Partial<SupportTicket> = {
-      admin_reply: adminReply.trim() || null,
-      status: newStatus as any,
-    };
-
     updateTicketMutation.mutate({
       id: selectedTicket.id,
-      data: updateData,
+      data: { status: newStatus as any },
     });
   };
 
@@ -186,27 +209,14 @@ export function AdminSupportTickets() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div>
-                      <div className="text-sm font-medium mb-1">Сообщение пользователя:</div>
-                      <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
-                        {ticket.message}
-                      </div>
-                    </div>
-                    {ticket.admin_reply && (
-                      <div>
-                        <div className="text-sm font-medium mb-1 text-primary">Ваш ответ:</div>
-                        <div className="text-sm bg-primary/10 p-3 rounded-md">
-                          {ticket.admin_reply}
-                        </div>
-                      </div>
-                    )}
                     <div className="flex gap-2">
                       <Button
                         size="sm"
-                        onClick={() => handleReplyToTicket(ticket)}
-                        data-testid={`button-reply-ticket-${ticket.id}`}
+                        onClick={() => handleOpenChat(ticket)}
+                        data-testid={`button-chat-ticket-${ticket.id}`}
                       >
-                        {ticket.admin_reply ? "Редактировать ответ" : "Ответить"}
+                        <MessageSquare className="mr-2 h-4 w-4" />
+                        Открыть чат
                       </Button>
                     </div>
                   </CardContent>
@@ -217,19 +227,22 @@ export function AdminSupportTickets() {
         </CardContent>
       </Card>
 
-      <Dialog open={replyDialogOpen} onOpenChange={setReplyDialogOpen}>
-        <DialogContent data-testid="dialog-admin-reply">
+      <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col" data-testid="dialog-admin-chat">
           <DialogHeader>
-            <DialogTitle>Ответить на тикет</DialogTitle>
-            <DialogDescription>
+            <DialogTitle>
               {selectedTicket && `Тикет #${selectedTicket.id}: ${selectedTicket.subject}`}
+            </DialogTitle>
+            <DialogDescription>
+              Чат с пользователем ID: {selectedTicket?.user_id}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Статус</label>
+          
+          <div className="flex items-center gap-4 py-2">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Статус:</label>
               <Select value={newStatus} onValueChange={setNewStatus}>
-                <SelectTrigger data-testid="select-ticket-status">
+                <SelectTrigger className="w-[180px]" data-testid="select-ticket-status">
                   <SelectValue placeholder="Выберите статус" />
                 </SelectTrigger>
                 <SelectContent>
@@ -239,34 +252,72 @@ export function AdminSupportTickets() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">Ответ</label>
-              <Textarea
-                placeholder="Введите ответ пользователю"
-                value={adminReply}
-                onChange={(e) => setAdminReply(e.target.value)}
-                rows={5}
-                data-testid="textarea-admin-reply"
-              />
-            </div>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={handleUpdateStatus}
+              disabled={updateTicketMutation.isPending}
+              data-testid="button-update-status"
+            >
+              Обновить статус
+            </Button>
           </div>
-          <DialogFooter>
+
+          <ScrollArea className="flex-1 h-[400px] border rounded-md p-4" data-testid="chat-messages">
+            {messagesLoading ? (
+              <div className="text-center text-muted-foreground">Загрузка сообщений...</div>
+            ) : messages.length === 0 ? (
+              <div className="text-center text-muted-foreground">Нет сообщений</div>
+            ) : (
+              <div className="space-y-4">
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex ${msg.is_admin === 1 ? 'justify-end' : 'justify-start'}`}
+                    data-testid={`message-${msg.id}`}
+                  >
+                    <div
+                      className={`max-w-[80%] rounded-lg p-3 ${
+                        msg.is_admin === 1
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted'
+                      }`}
+                    >
+                      <div className="text-xs opacity-70 mb-1">
+                        {msg.is_admin === 1 ? 'Администратор' : 'Пользователь'} •{' '}
+                        {new Date(msg.created_at).toLocaleString('ru-RU')}
+                      </div>
+                      <div className="text-sm whitespace-pre-wrap">{msg.message}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+
+          <div className="flex gap-2 pt-4">
+            <Textarea
+              placeholder="Введите ваше сообщение..."
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              rows={3}
+              data-testid="textarea-admin-message"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+            />
             <Button
-              variant="outline"
-              onClick={() => setReplyDialogOpen(false)}
-              disabled={updateTicketMutation.isPending}
-              data-testid="button-cancel-reply"
+              onClick={handleSendMessage}
+              disabled={sendMessageMutation.isPending || !newMessage.trim()}
+              data-testid="button-send-message"
+              className="self-end"
             >
-              Отмена
+              <Send className="h-4 w-4" />
             </Button>
-            <Button
-              onClick={handleSaveReply}
-              disabled={updateTicketMutation.isPending}
-              data-testid="button-save-reply"
-            >
-              {updateTicketMutation.isPending ? "Сохранение..." : "Сохранить"}
-            </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

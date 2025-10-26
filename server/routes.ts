@@ -13,6 +13,7 @@ import {
   insertPromocodeSchema,
   insertSupportTicketSchema,
   updateSupportTicketSchema,
+  insertSupportMessageSchema,
 } from "@shared/schema";
 import {
   handleTelegramUpdate,
@@ -562,6 +563,54 @@ export function registerRoutes(app: Express): Server {
       res.json(ticket);
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Ошибка обновления тикета" });
+    }
+  });
+
+  app.get("/api/support-tickets/:id/messages", requireAuth, (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const ticket = storage.supportTickets.findById(id);
+      if (!ticket) {
+        return res.status(404).json({ message: "Тикет не найден" });
+      }
+      if (ticket.user_id !== req.session.userId) {
+        const user = storage.users.findById(req.session.userId!);
+        if (!user || user.is_admin !== 1) {
+          return res.status(403).json({ message: "Доступ запрещен" });
+        }
+      }
+      const messages = storage.supportMessages.findByTicketId(id);
+      res.json(messages);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка загрузки сообщений" });
+    }
+  });
+
+  app.post("/api/support-tickets/:id/messages", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const ticket = storage.supportTickets.findById(id);
+      if (!ticket) {
+        return res.status(404).json({ message: "Тикет не найден" });
+      }
+      
+      const user = storage.users.findById(req.session.userId!);
+      const isAdmin = user?.is_admin === 1;
+      
+      if (!isAdmin && ticket.user_id !== req.session.userId) {
+        return res.status(403).json({ message: "Доступ запрещен" });
+      }
+      
+      const validatedData = insertSupportMessageSchema.parse({
+        ticket_id: id,
+        is_admin: isAdmin ? 1 : 0,
+        message: req.body.message,
+      });
+      
+      const message = storage.supportMessages.create(validatedData);
+      res.json(message);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка создания сообщения" });
     }
   });
 

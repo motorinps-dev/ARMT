@@ -16,6 +16,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export function AdminServers() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingServer, setEditingServer] = useState<Server | null>(null);
   const { toast } = useToast();
 
   const { data: servers = [], isLoading } = useQuery<Server[]>({
@@ -23,6 +25,24 @@ export function AdminServers() {
   });
 
   const form = useForm<InsertServer>({
+    resolver: zodResolver(insertServerSchema),
+    defaultValues: {
+      name: "",
+      panel_url: "",
+      panel_username: "",
+      panel_password: "",
+      vless_address: "",
+      vless_port: 443,
+      vless_inbound_id: 1,
+      vless_sni: "",
+      vless_flow: "xtls-rprx-vision",
+      vless_public_key: "",
+      vless_short_id: "",
+      is_active: 1,
+    },
+  });
+
+  const editForm = useForm<InsertServer>({
     resolver: zodResolver(insertServerSchema),
     defaultValues: {
       name: "",
@@ -61,6 +81,54 @@ export function AdminServers() {
       });
     },
   });
+
+  const updateServerMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertServer> }) => {
+      return await apiRequest("PATCH", `/api/admin/servers/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/servers"] });
+      toast({
+        title: "Успех",
+        description: "Сервер успешно обновлен",
+      });
+      setIsEditDialogOpen(false);
+      setEditingServer(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось обновить сервер",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEditServer = (server: Server) => {
+    setEditingServer(server);
+    editForm.reset({
+      name: server.name,
+      panel_url: server.panel_url,
+      panel_username: server.panel_username,
+      panel_password: server.panel_password,
+      vless_address: server.vless_address,
+      vless_port: server.vless_port,
+      vless_inbound_id: server.vless_inbound_id,
+      vless_sni: server.vless_sni,
+      vless_flow: server.vless_flow,
+      vless_public_key: server.vless_public_key,
+      vless_short_id: server.vless_short_id,
+      is_active: server.is_active,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleTestConnection = (server: Server) => {
+    toast({
+      title: "Тест подключения",
+      description: `Тестирование подключения к серверу "${server.name}"...`,
+    });
+  };
 
   if (isLoading) {
     return <div className="text-center text-muted-foreground">Загрузка...</div>;
@@ -312,10 +380,20 @@ export function AdminServers() {
                 </div>
 
                 <div className="flex gap-2 pt-3">
-                  <Button size="sm" variant="outline" data-testid={`button-edit-server-${server.id}`}>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => handleEditServer(server)}
+                    data-testid={`button-edit-server-${server.id}`}
+                  >
                     Редактировать
                   </Button>
-                  <Button size="sm" variant="outline" data-testid={`button-test-server-${server.id}`}>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => handleTestConnection(server)}
+                    data-testid={`button-test-server-${server.id}`}
+                  >
                     Тест подключения
                   </Button>
                 </div>
@@ -324,6 +402,187 @@ export function AdminServers() {
           ))
         )}
       </div>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Редактировать сервер</DialogTitle>
+            <DialogDescription>
+              Изменить данные для подключения к панели 3X-UI
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit((data) => {
+              if (editingServer) {
+                updateServerMutation.mutate({ id: editingServer.id, data });
+              }
+            })} className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Название сервера</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Сервер 1" data-testid="input-edit-server-name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="panel_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>URL панели</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://panel.example.com" data-testid="input-edit-panel-url" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="panel_username"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Имя пользователя</FormLabel>
+                      <FormControl>
+                        <Input placeholder="admin" data-testid="input-edit-panel-username" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="panel_password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Пароль</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="••••••••" data-testid="input-edit-panel-password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="vless_address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>VLESS адрес</FormLabel>
+                      <FormControl>
+                        <Input placeholder="example.com" data-testid="input-edit-vless-address" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="vless_port"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>VLESS порт</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="443" data-testid="input-edit-vless-port" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="vless_inbound_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Inbound ID</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="1" data-testid="input-edit-inbound-id" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="vless_sni"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SNI</FormLabel>
+                      <FormControl>
+                        <Input placeholder="example.com" data-testid="input-edit-sni" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="vless_flow"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Flow</FormLabel>
+                      <FormControl>
+                        <Input placeholder="xtls-rprx-vision" data-testid="input-edit-flow" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="vless_public_key"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Public Key</FormLabel>
+                      <FormControl>
+                        <Input placeholder="public_key" data-testid="input-edit-public-key" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={editForm.control}
+                name="vless_short_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Short ID</FormLabel>
+                    <FormControl>
+                      <Input placeholder="short_id" data-testid="input-edit-short-id" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex gap-2">
+                <Button type="submit" className="flex-1" disabled={updateServerMutation.isPending} data-testid="button-update-server">
+                  {updateServerMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Сохранить изменения
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Отмена
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

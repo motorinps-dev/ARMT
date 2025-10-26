@@ -19,6 +19,8 @@ import type {
   InsertSiteSettings,
   SupportTicket,
   InsertSupportTicket,
+  SupportMessage,
+  InsertSupportMessage,
 } from "@shared/schema";
 
 const db = new Database("vpn_platform.db");
@@ -122,13 +124,20 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     subject TEXT NOT NULL,
-    message TEXT NOT NULL,
     status TEXT DEFAULT 'open',
     priority TEXT DEFAULT 'medium',
-    admin_reply TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS support_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id INTEGER NOT NULL,
+    is_admin INTEGER NOT NULL DEFAULT 0,
+    message TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ticket_id) REFERENCES support_tickets(id) ON DELETE CASCADE
   );
 
   CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
@@ -138,6 +147,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
   CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON support_tickets(user_id);
   CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(status);
+  CREATE INDEX IF NOT EXISTS idx_support_messages_ticket_id ON support_messages(ticket_id);
 `);
 
 function addColumnIfNotExists(tableName: string, columnName: string, columnDef: string) {
@@ -239,6 +249,11 @@ export interface IStorage {
     findByUserId(userId: number): SupportTicket[];
     list(): SupportTicket[];
     update(id: number, data: Partial<SupportTicket>): SupportTicket | undefined;
+  };
+  supportMessages: {
+    create(message: InsertSupportMessage): SupportMessage;
+    findByTicketId(ticketId: number): SupportMessage[];
+    list(): SupportMessage[];
   };
 }
 
@@ -538,17 +553,27 @@ const storage: IStorage = {
   supportTickets: {
     create(ticket: InsertSupportTicket): SupportTicket {
       const stmt = db.prepare(`
-        INSERT INTO support_tickets (user_id, subject, message, status, priority)
-        VALUES (@user_id, @subject, @message, @status, @priority)
+        INSERT INTO support_tickets (user_id, subject, status, priority)
+        VALUES (@user_id, @subject, @status, @priority)
       `);
       const result = stmt.run({
         user_id: ticket.user_id,
         subject: ticket.subject,
-        message: ticket.message,
         status: ticket.status || 'open',
         priority: ticket.priority || 'medium',
       });
-      return storage.supportTickets.findById(result.lastInsertRowid as number)!;
+      
+      const ticketId = result.lastInsertRowid as number;
+      
+      if ((ticket as any).message) {
+        storage.supportMessages.create({
+          ticket_id: ticketId,
+          is_admin: 0,
+          message: (ticket as any).message,
+        });
+      }
+      
+      return storage.supportTickets.findById(ticketId)!;
     },
 
     findById(id: number): SupportTicket | undefined {
@@ -574,10 +599,6 @@ const storage: IStorage = {
         updates.push("subject = @subject");
         values.subject = data.subject;
       }
-      if (data.message !== undefined) {
-        updates.push("message = @message");
-        values.message = data.message;
-      }
       if (data.status !== undefined) {
         updates.push("status = @status");
         values.status = data.status;
@@ -585,10 +606,6 @@ const storage: IStorage = {
       if (data.priority !== undefined) {
         updates.push("priority = @priority");
         values.priority = data.priority;
-      }
-      if (data.admin_reply !== undefined) {
-        updates.push("admin_reply = @admin_reply");
-        values.admin_reply = data.admin_reply;
       }
 
       if (updates.length === 0) {
@@ -602,6 +619,32 @@ const storage: IStorage = {
       stmt.run(values);
 
       return storage.supportTickets.findById(id);
+    },
+  },
+
+  supportMessages: {
+    create(message: InsertSupportMessage): SupportMessage {
+      const stmt = db.prepare(`
+        INSERT INTO support_messages (ticket_id, is_admin, message)
+        VALUES (@ticket_id, @is_admin, @message)
+      `);
+      const result = stmt.run({
+        ticket_id: message.ticket_id,
+        is_admin: message.is_admin,
+        message: message.message,
+      });
+      const stmt2 = db.prepare("SELECT * FROM support_messages WHERE id = ?");
+      return stmt2.get(result.lastInsertRowid) as SupportMessage;
+    },
+
+    findByTicketId(ticketId: number): SupportMessage[] {
+      const stmt = db.prepare("SELECT * FROM support_messages WHERE ticket_id = ? ORDER BY created_at ASC");
+      return stmt.all(ticketId) as SupportMessage[];
+    },
+
+    list(): SupportMessage[] {
+      const stmt = db.prepare("SELECT * FROM support_messages ORDER BY created_at DESC");
+      return stmt.all() as SupportMessage[];
     },
   },
 };
