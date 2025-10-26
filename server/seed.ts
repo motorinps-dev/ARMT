@@ -5,12 +5,21 @@ async function seed() {
   console.log("Seeding database...");
 
   try {
-    const ownerEmail = "owner@armt.ru";
-    const existingOwner = storage.users.findByEmail(ownerEmail);
+    const ownerEmail = "owner@armt.su";
+    const oldOwnerEmail = "owner@armt.ru";
     
-    if (!existingOwner) {
+    const existingNewOwner = storage.users.findByEmail(ownerEmail);
+    const existingOldOwner = storage.users.findByEmail(oldOwnerEmail);
+    
+    if (existingOldOwner && existingNewOwner) {
+      storage.users.delete(existingOldOwner.id);
+      console.log(`✓ Removed legacy owner account: ${oldOwnerEmail}`);
+    } else if (existingOldOwner && !existingNewOwner) {
+      storage.users.update(existingOldOwner.id, { email: ownerEmail });
+      console.log(`✓ Migrated owner admin user: ${oldOwnerEmail} → ${ownerEmail}`);
+    } else if (!existingNewOwner) {
       const hashedPassword = await bcrypt.hash("owner123", 10);
-      const owner = storage.users.create({
+      storage.users.create({
         email: ownerEmail,
         password: hashedPassword,
         is_admin: 1,
@@ -20,12 +29,21 @@ async function seed() {
       console.log("✓ Owner admin user already exists");
     }
 
-    const adminEmail = "admin@armt.vpn";
-    const existingAdmin = storage.users.findByEmail(adminEmail);
+    const adminEmail = "admin@armt.su";
+    const oldAdminEmail = "admin@armt.vpn";
     
-    if (!existingAdmin) {
+    const existingNewAdmin = storage.users.findByEmail(adminEmail);
+    const existingOldAdmin = storage.users.findByEmail(oldAdminEmail);
+    
+    if (existingOldAdmin && existingNewAdmin) {
+      storage.users.delete(existingOldAdmin.id);
+      console.log(`✓ Removed legacy admin account: ${oldAdminEmail}`);
+    } else if (existingOldAdmin && !existingNewAdmin) {
+      storage.users.update(existingOldAdmin.id, { email: adminEmail });
+      console.log(`✓ Migrated admin user: ${oldAdminEmail} → ${adminEmail}`);
+    } else if (!existingNewAdmin) {
       const hashedPassword = await bcrypt.hash("admin123", 10);
-      const admin = storage.users.create({
+      storage.users.create({
         email: adminEmail,
         password: hashedPassword,
         is_admin: 1,
@@ -62,8 +80,8 @@ async function seed() {
 
     console.log("\n✅ Database seeded successfully!");
     console.log("\n📝 Admin credentials:");
-    console.log("   Owner: owner@armt.ru / owner123");
-    console.log("   Admin: admin@armt.vpn / admin123");
+    console.log("   Owner: owner@armt.su / owner123");
+    console.log("   Admin: admin@armt.su / admin123");
   } catch (error) {
     console.error("❌ Error seeding database:", error);
   }

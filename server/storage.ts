@@ -188,6 +188,7 @@ export interface IStorage {
     findByTelegramId(telegramId: number): User | undefined;
     findByNickname(nickname: string): User | undefined;
     update(id: number, data: Partial<User>): User | undefined;
+    delete(id: number): boolean;
     list(): User[];
   };
   servers: {
@@ -289,6 +290,12 @@ const storage: IStorage = {
       const stmt = db.prepare(`UPDATE users SET ${fields} WHERE id = @id`);
       stmt.run({ ...data, id });
       return storage.users.findById(id);
+    },
+
+    delete(id: number): boolean {
+      const stmt = db.prepare("DELETE FROM users WHERE id = ?");
+      const result = stmt.run(id);
+      return result.changes > 0;
     },
 
     list(): User[] {
