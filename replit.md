@@ -189,6 +189,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (October 26, 2025)
 
+**Admin Account Migration (Latest)**
+- Updated admin email addresses from owner@armt.ru → owner@armt.su and admin@armt.vpn → admin@armt.su
+- Implemented idempotent migration logic in `server/seed.ts` to handle all database states
+- Added `delete` method to storage.users interface for proper account cleanup
+- Migration automatically detects and removes legacy accounts or updates them to new email addresses
+- Prevents unique constraint violations by checking for existing accounts before migration
+- Admin credentials: owner@armt.su / owner123 and admin@armt.su / admin123
+
 **Telegram 2FA Implementation**
 - Added complete Telegram Bot API integration in `server/telegram-bot.ts`
 - Implemented webhook endpoint for bot message handling
