@@ -3,7 +3,7 @@ import catImage from "@assets/изображение_1761559553605.png";
 export default function NotFound() {
   return (
     <div className="fixed inset-0 bg-[#050505] overflow-hidden font-['Montserrat',sans-serif] text-white text-[18px]">
-      <div className="absolute bottom-0 w-full max-w-[1920px] left-1/2 -translate-x-1/2 animate-slide-up">
+      <div className="absolute bottom-0 w-full max-w-[1920px] left-1/2 -translate-x-1/2 animate-slide-up z-50">
         <img 
           src={catImage} 
           alt="cat" 
@@ -14,7 +14,7 @@ export default function NotFound() {
         </h1>
       </div>
       
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 text-[750px] font-black leading-none animate-error-slide select-none pointer-events-none">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 text-[750px] font-black leading-none animate-error-slide select-none pointer-events-none z-10">
         404
       </div>
 
