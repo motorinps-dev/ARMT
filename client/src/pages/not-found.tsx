@@ -1,15 +1,9 @@
-import catImage from "@assets/изображение_1761559553605.png";
-
 export default function NotFound() {
   return (
     <div className="fixed inset-0 bg-[#050505] overflow-hidden font-['Montserrat',sans-serif] text-white text-[18px]">
-      <div className="absolute bottom-0 w-full max-w-[1920px] left-1/2 -translate-x-1/2 animate-slide-up z-50">
-        <img 
-          src={catImage} 
-          alt="cat" 
-          className="w-full h-full object-cover"
-        />
-        <h1 className="absolute bottom-[150px] left-1/2 -translate-x-1/2 font-black text-[115px] whitespace-nowrap">
+      <div className="absolute bottom-0 w-full max-w-[1920px] left-1/2 -translate-x-1/2 animate-slide-up z-50 flex flex-col items-center pb-20">
+        <div className="text-[200px] mb-4">🐱</div>
+        <h1 className="font-black text-[115px] whitespace-nowrap">
           ОКАК
         </h1>
       </div>
