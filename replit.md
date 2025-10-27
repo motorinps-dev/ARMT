@@ -189,7 +189,16 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (October 27, 2025)
 
-**Latest Updates**
+**Latest Updates - Telegram Bot QR Code Feature**
+- Added QR code generation functionality to Telegram bot for VPN configurations
+- Integrated qrcode and Pillow libraries for bot (added to requirements.txt)
+- Modified `my_vpn` function to display device buttons with profile selection
+- Created `show_vpn_device` handler that generates and sends QR code images with configuration keys
+- Users can now get QR codes and copy keys directly from Telegram bot
+- Synchronization between web app and bot via shared SQLite database ensures consistency
+- Fixed syntax errors in bot file (removed duplicate code and syntax issues)
+
+**Previous Updates**
 - Added promo code validation to prevent creating codes with empty names (min 1 char, max 50 chars, trimmed)
 - Implemented device management UI with device counter showing "X/5 devices" limit
 - Added delete device functionality with confirmation dialog

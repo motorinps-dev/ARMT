@@ -6,6 +6,7 @@ import uuid
 import json
 import csv
 from datetime import datetime, timedelta
+from io import BytesIO
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
@@ -21,6 +22,7 @@ from telegram.ext import (
 from telegram.helpers import escape_markdown
 from dotenv import load_dotenv
 import aiohttp
+import qrcode
 
 # =======================================
 # ===           НАСТРОЙКИ             ===
@@ -34,9 +36,6 @@ GROUP_ID_STR = os.getenv("GROUP_ID")
 GROUP_ID = int(GROUP_ID_STR) if GROUP_ID_STR else 0
 CRYPTO_BOT_TOKEN = os.getenv("CRYPTO_BOT_TOKEN")
 MIN_RUB_DEPOSIT = 130
-n# НОВЫЕ ПАРАМЕТРЫ ДЛЯ ПРОБНОГО ПЕРИОДА
-TRIAL_DAYS = 1
-TRIAL_GB = 1
 # НОВЫЕ ПАРАМЕТРЫ ДЛЯ ПРОБНОГО ПЕРИОДА
 TRIAL_DAYS = 1
 TRIAL_GB = 1
@@ -296,13 +295,13 @@ def init_db():
             cursor.execute("INSERT OR IGNORE INTO bot_texts (key, value) VALUES (?, ?)", (key, value))
 
         try:
-            cursor.execute("ALTER TABLE users ADD COLUMN main_balance REAL DEFAULT 0, has_used_trial INTEGER DEFAULT 0")
-        except sqlite3.OperationalError: pass
-try:            cursor.execute("ALTER TABLE users ADD COLUMN has_used_trial INTEGER DEFAULT 0")        except sqlite3.OperationalError: pass
+            cursor.execute("ALTER TABLE users ADD COLUMN main_balance REAL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
         try:
             cursor.execute("ALTER TABLE users ADD COLUMN has_used_trial INTEGER DEFAULT 0")
-        except sqlite3.OperationalError: pass
-try:            cursor.execute("ALTER TABLE users ADD COLUMN has_used_trial INTEGER DEFAULT 0")        except sqlite3.OperationalError: pass
+        except sqlite3.OperationalError:
+            pass
         
         conn.commit()
     logger.info("База данных инициализирована.")
@@ -902,28 +901,101 @@ async def my_vpn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     with sqlite3.connect("vpn_platform.db") as conn:
-        sub = conn.cursor().execute("SELECT expires_at FROM users WHERE user_id = ?", (query.from_user.id,)).fetchone()
-        profiles = conn.cursor().execute("SELECT config_link FROM vpn_profiles WHERE assigned_to_user_id = ?", (query.from_user.id,)).fetchall()
+        cursor = conn.cursor()
+        sub = cursor.execute("SELECT expires_at FROM users WHERE user_id = ?", (query.from_user.id,)).fetchone()
+        profiles = cursor.execute("SELECT id, config_link FROM vpn_profiles WHERE assigned_to_user_id = ?", (query.from_user.id,)).fetchall()
 
     text = "У вас нет активных подписок."
+    keyboard = []
+    
     if sub and sub[0]:
         try:
             expires_dt = datetime.strptime(sub[0], '%Y-%m-%d %H:%M:%S')
             if expires_dt > datetime.now():
-                text = f"🔑 Ваша подписка активна до: **{expires_dt.strftime('%d.%m.%Y %H:%M')}**"
+                text = f"🔑 Ваша подписка активна до: **{expires_dt.strftime('%d.%m.%Y %H:%M')}**\n\n"
                 if profiles:
-                    links_text = "\n".join([f"`{link[0]}`" for link in profiles])
-                    text += f"\n\nВаши ключи для подключения:\n{links_text}"
-
+                    text += f"Количество устройств: **{len(profiles)}/5**\n\n"
+                    text += "Выберите устройство, чтобы получить QR-код и ключ подключения:"
+                    
+                    for i, (profile_id, _) in enumerate(profiles, 1):
+                        keyboard.append([
+                            InlineKeyboardButton(
+                                f"📱 Устройство #{i}", 
+                                callback_data=f"vpn_device_{profile_id}"
+                            )
+                        ])
         except (ValueError, TypeError):
             pass
 
+    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")])
+    
     await query.edit_message_text(
         text,
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")]]),
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown",
         disable_web_page_preview=True
     )
+    return STATE_MAIN_MENU
+
+
+async def show_vpn_device(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    
+    profile_id = int(query.data.split("vpn_device_")[1])
+    
+    with sqlite3.connect("vpn_platform.db") as conn:
+        cursor = conn.cursor()
+        profile = cursor.execute(
+            "SELECT config_link, assigned_to_user_id FROM vpn_profiles WHERE id = ?", 
+            (profile_id,)
+        ).fetchone()
+    
+    if not profile or profile[1] != query.from_user.id:
+        await query.edit_message_text(
+            "❌ Ошибка: устройство не найдено или не принадлежит вам.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data="my_vpn")]])
+        )
+        return STATE_MAIN_MENU
+    
+    config_link = profile[0]
+    
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(config_link)
+    qr.make(fit=True)
+    
+    img = qr.make_image(fill_color="black", back_color="white")
+    bio = BytesIO()
+    img.save(bio, 'PNG')
+    bio.seek(0)
+    
+    caption = (
+        f"🔑 **Ключ подключения:**\n\n"
+        f"`{config_link}`\n\n"
+        f"📱 Отсканируйте QR-код в приложении v2rayNG, v2raytun или других VPN клиентах\n"
+        f"📋 Или скопируйте ключ выше и вставьте в приложение"
+    )
+    
+    await query.message.reply_photo(
+        photo=bio,
+        caption=caption,
+        parse_mode="Markdown"
+    )
+    
+    keyboard = [
+        [InlineKeyboardButton("⬅️ Назад к устройствам", callback_data="my_vpn")]
+    ]
+    
+    await query.edit_message_text(
+        "✅ QR-код и ключ отправлены выше",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    
     return STATE_MAIN_MENU
 
 
@@ -1830,6 +1902,7 @@ def main():
             STATE_MAIN_MENU: [
                 CallbackQueryHandler(select_tariff, pattern="^buy_vpn$"),
                 CallbackQueryHandler(my_vpn, pattern="^my_vpn$"),
+                CallbackQueryHandler(show_vpn_device, pattern="^vpn_device_"),
                 CallbackQueryHandler(instructions_menu, pattern="^instructions$"),
                 CallbackQueryHandler(referral_menu, pattern="^referral$"),
                 CallbackQueryHandler(support_start, pattern="^support$"),
