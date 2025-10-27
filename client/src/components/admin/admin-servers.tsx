@@ -104,6 +104,26 @@ export function AdminServers() {
     },
   });
 
+  const toggleServerMutation = useMutation({
+    mutationFn: async ({ id, is_active }: { id: number; is_active: number }) => {
+      return await apiRequest("PATCH", `/api/admin/servers/${id}`, { is_active });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/servers"] });
+      toast({
+        title: "Успех",
+        description: "Статус сервера изменен",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось изменить статус сервера",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleEditServer = (server: Server) => {
     setEditingServer(server);
     editForm.reset({
@@ -123,10 +143,10 @@ export function AdminServers() {
     setIsEditDialogOpen(true);
   };
 
-  const handleTestConnection = (server: Server) => {
-    toast({
-      title: "Тест подключения",
-      description: `Тестирование подключения к серверу "${server.name}"...`,
+  const handleToggleServer = (server: Server) => {
+    toggleServerMutation.mutate({
+      id: server.id,
+      is_active: server.is_active === 1 ? 0 : 1,
     });
   };
 
@@ -383,6 +403,7 @@ export function AdminServers() {
                   <Button 
                     size="sm" 
                     variant="outline" 
+                    className="flex-1"
                     onClick={() => handleEditServer(server)}
                     data-testid={`button-edit-server-${server.id}`}
                   >
@@ -391,10 +412,11 @@ export function AdminServers() {
                   <Button 
                     size="sm" 
                     variant="outline" 
-                    onClick={() => handleTestConnection(server)}
-                    data-testid={`button-test-server-${server.id}`}
+                    onClick={() => handleToggleServer(server)}
+                    disabled={toggleServerMutation.isPending}
+                    data-testid={`button-toggle-server-${server.id}`}
                   >
-                    Тест подключения
+                    {server.is_active === 1 ? "Деактивировать" : "Активировать"}
                   </Button>
                 </div>
               </CardContent>
