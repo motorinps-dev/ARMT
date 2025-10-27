@@ -132,14 +132,16 @@ export type InsertTariff = z.infer<typeof insertTariffSchema>;
 // ============================================
 
 export const promocodeSchema = z.object({
-  code: z.string(),
+  code: z.string().min(1, "Код промокода обязателен").trim(),
   discount_percent: z.number().min(1).max(100),
   max_uses: z.number(),
   uses_count: z.number().default(0),
   is_active: z.number().default(1),
 });
 
-export const insertPromocodeSchema = promocodeSchema.omit({ uses_count: true });
+export const insertPromocodeSchema = promocodeSchema.omit({ uses_count: true }).extend({
+  code: z.string().min(1, "Код промокода обязателен").max(50, "Код не должен превышать 50 символов").trim(),
+});
 
 export type Promocode = z.infer<typeof promocodeSchema>;
 export type InsertPromocode = z.infer<typeof insertPromocodeSchema>;
