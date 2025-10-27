@@ -15,9 +15,9 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 const editUserSchema = z.object({
-  main_balance: z.number().min(0),
-  referral_balance: z.number().min(0),
-  is_admin: z.number().min(0).max(1),
+  main_balance: z.coerce.number().min(0),
+  referral_balance: z.coerce.number().min(0),
+  is_admin: z.coerce.number().min(0).max(1),
 });
 
 type EditUserFormData = z.infer<typeof editUserSchema>;
