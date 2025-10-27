@@ -261,6 +261,23 @@ export function registerRoutes(app: Express): Server {
     res.json(profiles);
   });
 
+  app.delete("/api/vpn/profiles/:id", requireAuth, (req, res) => {
+    const profileId = parseInt(req.params.id);
+    const profiles = storage.vpnProfiles.findByUserId(req.session.userId!);
+    const profile = profiles.find(p => p.id === profileId);
+    
+    if (!profile) {
+      return res.status(404).json({ message: "Профиль не найден" });
+    }
+
+    const success = storage.vpnProfiles.delete(profileId);
+    if (success) {
+      res.json({ message: "Устройство успешно удалено" });
+    } else {
+      res.status(500).json({ message: "Не удалось удалить устройство" });
+    }
+  });
+
   app.get("/api/referrals", requireAuth, (req, res) => {
     const referrals = storage.referrals.findByReferrerId(req.session.userId!);
     res.json(referrals);

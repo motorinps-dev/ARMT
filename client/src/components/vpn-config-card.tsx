@@ -1,21 +1,46 @@
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, QrCode as QrCodeIcon, Check, FileText } from "lucide-react";
+import { Copy, QrCode as QrCodeIcon, Check, FileText, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import type { VpnProfile } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface VpnConfigCardProps {
   profile: VpnProfile;
+  deviceNumber: number;
 }
 
-export function VpnConfigCard({ profile }: VpnConfigCardProps) {
+export function VpnConfigCard({ profile, deviceNumber }: VpnConfigCardProps) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const deleteDeviceMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("DELETE", `/api/vpn/profiles/${profile.id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vpn/profiles"] });
+      toast({
+        title: "Устройство удалено",
+        description: "Ключ подключения был успешно удален",
+      });
+      setDeleteDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось удалить устройство",
+        variant: "destructive",
+      });
+    },
+  });
 
   const copyToClipboard = async (text: string) => {
     await navigator.clipboard.writeText(text);
@@ -33,11 +58,50 @@ export function VpnConfigCard({ profile }: VpnConfigCardProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-green-500"></div>
-            <CardTitle className="text-lg">Сервер #{profile.server_id}</CardTitle>
+            <CardTitle className="text-lg">Устройство #{deviceNumber}</CardTitle>
           </div>
-          <Badge variant="outline" className="text-xs">
-            {new Date(profile.created_at).toLocaleDateString('ru-RU')}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs">
+              {new Date(profile.created_at).toLocaleDateString('ru-RU')}
+            </Badge>
+            <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+              <DialogTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                  data-testid={`button-delete-device-${profile.id}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                    Удалить устройство?
+                  </DialogTitle>
+                  <DialogDescription>
+                    Это действие нельзя отменить. Ключ подключения будет удален и больше не будет работать на этом устройстве.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex gap-2 justify-end mt-4">
+                  <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                    Отмена
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => deleteDeviceMutation.mutate()}
+                    disabled={deleteDeviceMutation.isPending}
+                    data-testid={`button-confirm-delete-${profile.id}`}
+                  >
+                    {deleteDeviceMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Удалить
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
         <CardDescription>
           VPN конфигурация для подключения

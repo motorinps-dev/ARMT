@@ -353,13 +353,18 @@ export default function Dashboard() {
 
                 {vpnProfiles.length > 0 && (
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <Database className="h-5 w-5" />
-                      <h3 className="text-lg font-semibold">VPN Конфигурации</h3>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Database className="h-5 w-5" />
+                        <h3 className="text-lg font-semibold">Мои устройства</h3>
+                      </div>
+                      <Badge variant="secondary" className="text-sm" data-testid="text-device-count">
+                        {vpnProfiles.length} / 5 устройств
+                      </Badge>
                     </div>
                     <div className="grid gap-4">
-                      {vpnProfiles.map((profile) => (
-                        <VpnConfigCard key={profile.id} profile={profile} />
+                      {vpnProfiles.map((profile, index) => (
+                        <VpnConfigCard key={profile.id} profile={profile} deviceNumber={index + 1} />
                       ))}
                     </div>
                   </div>
