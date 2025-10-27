@@ -279,3 +279,92 @@ export const insertSupportMessageSchema = supportMessageSchema.omit({
 
 export type SupportMessage = z.infer<typeof supportMessageSchema>;
 export type InsertSupportMessage = z.infer<typeof insertSupportMessageSchema>;
+
+// ============================================
+// BOT SETTINGS SCHEMAS
+// ============================================
+
+export const botSettingsSchema = z.object({
+  key: z.string(),
+  value: z.string(),
+  updated_at: z.string(),
+});
+
+export const insertBotSettingsSchema = botSettingsSchema.omit({ updated_at: true });
+
+export type BotSettings = z.infer<typeof botSettingsSchema>;
+export type InsertBotSettings = z.infer<typeof insertBotSettingsSchema>;
+
+// Bot configuration keys
+export const BOT_SETTING_KEYS = {
+  BOT_TOKEN: 'bot_token',
+  ADMIN_IDS: 'admin_ids',
+  GROUP_ID: 'group_id',
+  CRYPTO_BOT_TOKEN: 'crypto_bot_token',
+  MIN_RUB_DEPOSIT: 'min_rub_deposit',
+  REFERRAL_BONUS_PERCENT: 'referral_bonus_percent',
+  TRIAL_DAYS: 'trial_days',
+  TRIAL_GB: 'trial_gb',
+  WEBHOOK_URL: 'webhook_url',
+  BOT_MODE: 'bot_mode',
+} as const;
+
+// Bot operational modes
+export const BOT_MODES = {
+  ACTIVE: 'active',
+  DISABLED: 'disabled',
+  MAINTENANCE: 'maintenance',
+} as const;
+
+export type BotMode = typeof BOT_MODES[keyof typeof BOT_MODES];
+
+// ============================================
+// UPDATE SETTINGS SCHEMAS (with validation)
+// ============================================
+
+export const updateSiteSettingSchema = z.object({
+  key: z.enum(['site_mode', 'profiles_per_purchase']),
+  value: z.string().min(1, "Значение не может быть пустым"),
+}).refine((data) => {
+  if (data.key === 'site_mode') {
+    return Object.values(SITE_MODES).includes(data.value as any);
+  }
+  if (data.key === 'profiles_per_purchase') {
+    const num = parseInt(data.value);
+    return !isNaN(num) && num > 0 && num <= 100;
+  }
+  return true;
+}, {
+  message: "Неверное значение для настройки",
+});
+
+export const updateBotSettingSchema = z.object({
+  key: z.enum([
+    'bot_token',
+    'admin_ids',
+    'group_id',
+    'crypto_bot_token',
+    'min_rub_deposit',
+    'referral_bonus_percent',
+    'trial_days',
+    'trial_gb',
+    'webhook_url',
+    'bot_mode',
+  ]),
+  value: z.string(),
+}).refine((data) => {
+  if (data.key === 'min_rub_deposit' || data.key === 'referral_bonus_percent' || 
+      data.key === 'trial_days' || data.key === 'trial_gb') {
+    const num = parseFloat(data.value);
+    return !isNaN(num) && num >= 0;
+  }
+  if (data.key === 'bot_mode') {
+    return Object.values(BOT_MODES).includes(data.value as any);
+  }
+  return true;
+}, {
+  message: "Неверное значение для настройки бота",
+});
+
+export type UpdateSiteSetting = z.infer<typeof updateSiteSettingSchema>;
+export type UpdateBotSetting = z.infer<typeof updateBotSettingSchema>;

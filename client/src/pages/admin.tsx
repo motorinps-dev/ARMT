@@ -25,6 +25,7 @@ import { AdminServers } from "@/components/admin/admin-servers";
 import { AdminTariffs } from "@/components/admin/admin-tariffs";
 import { AdminPromocodes } from "@/components/admin/admin-promocodes";
 import { AdminSupportTickets } from "@/components/admin/admin-support-tickets";
+import { AdminSettings } from "@/components/admin/admin-settings";
 
 type AdminTab = "overview" | "users" | "servers" | "tariffs" | "promocodes" | "support" | "settings";
 
@@ -317,39 +318,7 @@ export default function Admin() {
             {activeTab === "tariffs" && <AdminTariffs />}
             {activeTab === "promocodes" && <AdminPromocodes />}
             {activeTab === "support" && <AdminSupportTickets />}
-
-            {activeTab === "settings" && (
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Настройки системы</CardTitle>
-                    <CardDescription>
-                      Конфигурация платформы
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <div className="text-sm text-muted-foreground mb-1">Telegram Bot</div>
-                      <div className="font-mono text-sm bg-muted p-2 rounded">
-                        Подключен
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground mb-1">CryptoBot API</div>
-                      <div className="font-mono text-sm bg-muted p-2 rounded">
-                        Подключен
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground mb-1">База данных</div>
-                      <div className="font-mono text-sm bg-muted p-2 rounded">
-                        SQLite3
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
+            {activeTab === "settings" && <AdminSettings />}
           </div>
         </main>
       </div>

@@ -21,6 +21,8 @@ import type {
   InsertSupportTicket,
   SupportMessage,
   InsertSupportMessage,
+  BotSettings,
+  InsertBotSettings,
 } from "@shared/schema";
 
 const db = new Database("vpn_platform.db");
@@ -140,6 +142,12 @@ db.exec(`
     FOREIGN KEY (ticket_id) REFERENCES support_tickets(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS bot_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
   CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   CREATE INDEX IF NOT EXISTS idx_vpn_profiles_user_id ON vpn_profiles(user_id);
@@ -188,6 +196,21 @@ if (defaultSettings.count === 0) {
   db.prepare("INSERT INTO site_settings (key, value) VALUES (?, ?)").run('site_mode', 'demo');
   db.prepare("INSERT INTO site_settings (key, value) VALUES (?, ?)").run('profiles_per_purchase', '5');
   console.log("Default site settings initialized");
+}
+
+const defaultBotSettings = db.prepare("SELECT COUNT(*) as count FROM bot_settings").get() as { count: number };
+if (defaultBotSettings.count === 0) {
+  db.prepare("INSERT INTO bot_settings (key, value) VALUES (?, ?)").run('bot_token', '');
+  db.prepare("INSERT INTO bot_settings (key, value) VALUES (?, ?)").run('admin_ids', '');
+  db.prepare("INSERT INTO bot_settings (key, value) VALUES (?, ?)").run('group_id', '');
+  db.prepare("INSERT INTO bot_settings (key, value) VALUES (?, ?)").run('crypto_bot_token', '');
+  db.prepare("INSERT INTO bot_settings (key, value) VALUES (?, ?)").run('min_rub_deposit', '130');
+  db.prepare("INSERT INTO bot_settings (key, value) VALUES (?, ?)").run('referral_bonus_percent', '10');
+  db.prepare("INSERT INTO bot_settings (key, value) VALUES (?, ?)").run('trial_days', '1');
+  db.prepare("INSERT INTO bot_settings (key, value) VALUES (?, ?)").run('trial_gb', '1');
+  db.prepare("INSERT INTO bot_settings (key, value) VALUES (?, ?)").run('webhook_url', '');
+  db.prepare("INSERT INTO bot_settings (key, value) VALUES (?, ?)").run('bot_mode', 'active');
+  console.log("Default bot settings initialized");
 }
 
 export interface IStorage {
@@ -254,6 +277,11 @@ export interface IStorage {
     create(message: InsertSupportMessage): SupportMessage;
     findByTicketId(ticketId: number): SupportMessage[];
     list(): SupportMessage[];
+  };
+  botSettings: {
+    get(key: string): string | undefined;
+    set(key: string, value: string): void;
+    getAll(): Record<string, string>;
   };
 }
 
@@ -645,6 +673,29 @@ const storage: IStorage = {
     list(): SupportMessage[] {
       const stmt = db.prepare("SELECT * FROM support_messages ORDER BY created_at DESC");
       return stmt.all() as SupportMessage[];
+    },
+  },
+
+  botSettings: {
+    get(key: string): string | undefined {
+      const stmt = db.prepare("SELECT value FROM bot_settings WHERE key = ?");
+      const result = stmt.get(key) as { value: string } | undefined;
+      return result?.value;
+    },
+
+    set(key: string, value: string): void {
+      const stmt = db.prepare(`
+        INSERT INTO bot_settings (key, value, updated_at) 
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')
+      `);
+      stmt.run(key, value, value);
+    },
+
+    getAll(): Record<string, string> {
+      const stmt = db.prepare("SELECT key, value FROM bot_settings");
+      const rows = stmt.all() as { key: string; value: string }[];
+      return Object.fromEntries(rows.map(row => [row.key, row.value]));
     },
   },
 };

@@ -5,6 +5,7 @@ import asyncio
 import uuid
 import json
 from datetime import datetime, timedelta
+from typing import Optional
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
@@ -215,7 +216,7 @@ async def set_text(key: str, value: str, context: ContextTypes.DEFAULT_TYPE):
         del context.bot_data['texts']
 
 
-async def create_and_assign_vpn_profile_from_panel(user_id: int, username: str, tariff_key: str, context: ContextTypes.DEFAULT_TYPE, payment_amount: float = None) -> str | None:
+async def create_and_assign_vpn_profile_from_panel(user_id: int, username: str, tariff_key: str, context: ContextTypes.DEFAULT_TYPE, payment_amount: Optional[float] = None) -> Optional[str]:
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         servers = conn.cursor().execute("SELECT * FROM servers WHERE is_active = 1").fetchall()

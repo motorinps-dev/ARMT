@@ -14,6 +14,8 @@ import {
   insertSupportTicketSchema,
   updateSupportTicketSchema,
   insertSupportMessageSchema,
+  updateSiteSettingSchema,
+  updateBotSettingSchema,
 } from "@shared/schema";
 import {
   handleTelegramUpdate,
@@ -823,6 +825,44 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error("Webhook error:", error);
       res.status(500).json({ ok: false });
+    }
+  });
+
+  app.get("/api/admin/settings", requireAdmin, (req, res) => {
+    try {
+      const settings = storage.settings.getAll();
+      res.json(settings);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка получения настроек" });
+    }
+  });
+
+  app.put("/api/admin/settings", requireAdmin, (req, res) => {
+    try {
+      const validatedData = updateSiteSettingSchema.parse(req.body);
+      storage.settings.set(validatedData.key, validatedData.value);
+      res.json({ message: "Настройка успешно обновлена" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка обновления настройки" });
+    }
+  });
+
+  app.get("/api/admin/bot-settings", requireAdmin, (req, res) => {
+    try {
+      const settings = storage.botSettings.getAll();
+      res.json(settings);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка получения настроек бота" });
+    }
+  });
+
+  app.put("/api/admin/bot-settings", requireAdmin, (req, res) => {
+    try {
+      const validatedData = updateBotSettingSchema.parse(req.body);
+      storage.botSettings.set(validatedData.key, validatedData.value);
+      res.json({ message: "Настройка бота успешно обновлена" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Ошибка обновления настройки бота" });
     }
   });
 

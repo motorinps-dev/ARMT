@@ -1,554 +1,454 @@
 #!/bin/bash
 
-# ARMT VPN Platform - Комплексный скрипт установки
-# С автоматическим запросом данных и запасными вариантами
-
 set -e
 
-# Цвета для вывода
+INSTALL_DIR="/opt/armt-vpn"
+GITHUB_REPO="https://github.com/motorinps-dev/ARMT"
+BOT_SERVICE="armt-vpn-bot"
+WEB_SERVICE="armt-vpn-web"
+LOG_FILE="/var/log/armt-vpn-install.log"
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Функция для вывода с цветом
-print_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
+log() {
+    echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
 }
 
-print_success() {
-    echo -e "${GREEN}✅ $1${NC}"
+error() {
+    echo -e "${RED}[ERROR]${NC} $1" | tee -a "$LOG_FILE"
+    exit 1
 }
 
-print_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+warn() {
+    echo -e "${YELLOW}[WARNING]${NC} $1" | tee -a "$LOG_FILE"
 }
 
-print_error() {
-    echo -e "${RED}❌ $1${NC}"
+info() {
+    echo -e "${BLUE}[INFO]${NC} $1" | tee -a "$LOG_FILE"
 }
 
-# Функция для проверки команды
-check_command() {
-    command -v "$1" &> /dev/null
-}
-
-# Функция для безопасной генерации секретного ключа
-generate_secret() {
-    # Пробуем несколько методов генерации, первый доступный будет использован
-    if check_command openssl; then
-        openssl rand -hex 32 2>/dev/null && return 0
-    fi
-    
-    if check_command head && [ -r /dev/urandom ]; then
-        head -c 32 /dev/urandom | base64 2>/dev/null && return 0
-    fi
-    
-    if check_command dd && [ -r /dev/urandom ]; then
-        dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 && return 0
-    fi
-    
-    # Последняя попытка - использовать случайные данные
-    if check_command date && check_command md5sum; then
-        echo "$(date +%s%N)-$(hostname)-$$-$RANDOM" | md5sum | cut -d' ' -f1 && return 0
-    fi
-    
-    # Если ничего не сработало, генерируем простой ключ
-    echo "GENERATED_KEY_$(date +%s)_$(hostname)_$$_$RANDOM"
-}
-
-print_info "============================================"
-print_info "  ARMT VPN Platform - Установка"
-print_info "============================================"
-echo ""
-
-# Определяем директорию проекта
-PROJECT_DIR=$(pwd)
-print_info "Директория проекта: $PROJECT_DIR"
-echo ""
-
-# ==========================================
-# Шаг 1: Проверка Node.js
-# ==========================================
-print_info "Шаг 1: Проверка Node.js..."
-echo ""
-
-if check_command node; then
-    NODE_VERSION=$(node --version)
-    print_success "Node.js установлен: $NODE_VERSION"
-else
-    print_warning "Node.js не найден"
+print_header() {
     echo ""
-    echo "Установить Node.js 20? (y/n) [рекомендуется: y]"
-    read -r install_node
+    echo -e "${BLUE}╔═══════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║       ARMT VPN Platform Installation Script      ║${NC}"
+    echo -e "${BLUE}║                  Ubuntu 22.04                     ║${NC}"
+    echo -e "${BLUE}╚═══════════════════════════════════════════════════╝${NC}"
+    echo ""
+}
+
+check_root() {
+    if [ "$EUID" -ne 0 ]; then
+        error "Этот скрипт требует прав суперпользователя. Пожалуйста, запустите с sudo."
+    fi
+}
+
+check_ubuntu() {
+    if [ ! -f /etc/os-release ]; then
+        error "Невозможно определить операционную систему"
+    fi
     
-    if [ "$install_node" = "y" ] || [ "$install_node" = "Y" ]; then
-        print_info "Установка Node.js 20..."
-        
-        # Определяем ОС
-        if [ -f /etc/os-release ]; then
-            . /etc/os-release
-            OS=$NAME
-        fi
-        
-        if [ -f /etc/debian_version ]; then
-            print_info "Обнаружена Debian/Ubuntu система"
-            
-            # Пробуем установить через NodeSource
-            if curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - 2>/dev/null; then
-                sudo apt-get install -y nodejs || {
-                    print_error "Не удалось установить через NodeSource"
-                    print_info "Попытка установки через snap..."
-                    
-                    if check_command snap; then
-                        sudo snap install node --classic --channel=20 || {
-                            print_error "Не удалось установить через snap"
-                            print_error "Установите Node.js вручную: https://nodejs.org/"
-                            exit 1
-                        }
-                    else
-                        print_error "Установите Node.js вручную: https://nodejs.org/"
-                        exit 1
-                    fi
-                }
-            else
-                print_error "Не удалось загрузить установочный скрипт NodeSource"
-                exit 1
-            fi
-            
-            print_success "Node.js успешно установлен"
-        elif [ -f /etc/redhat-release ]; then
-            print_info "Обнаружена RedHat/CentOS система"
-            curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash - || {
-                print_error "Ошибка при установке Node.js"
-                exit 1
-            }
-            sudo yum install -y nodejs || sudo dnf install -y nodejs
-            print_success "Node.js успешно установлен"
-        else
-            print_warning "Неизвестная ОС. Установите Node.js 20 вручную"
-            print_info "Скачайте с: https://nodejs.org/"
+    . /etc/os-release
+    if [ "$ID" != "ubuntu" ]; then
+        error "Этот скрипт предназначен только для Ubuntu"
+    fi
+    
+    if [ "$VERSION_ID" != "22.04" ]; then
+        warn "Скрипт тестировался на Ubuntu 22.04. Текущая версия: $VERSION_ID"
+        read -p "Продолжить установку? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             exit 1
         fi
-    else
-        print_error "Node.js обязателен для работы. Установка прервана."
-        exit 1
     fi
-fi
-
-# Проверяем npm
-if ! check_command npm; then
-    print_error "npm не найден (обычно устанавливается вместе с Node.js)"
-    print_info "Переустановите Node.js с https://nodejs.org/"
-    exit 1
-fi
-
-NPM_VERSION=$(npm --version)
-print_success "npm установлен: $NPM_VERSION"
-echo ""
-
-# ==========================================
-# Шаг 2: Проверка Python (опционально)
-# ==========================================
-print_info "Шаг 2: Проверка Python (для Telegram бота)..."
-echo ""
-
-if check_command python3; then
-    PYTHON_VERSION=$(python3 --version)
-    print_success "Python установлен: $PYTHON_VERSION"
-else
-    print_warning "Python3 не найден"
-    echo "Установить Python3 для Telegram бота? (y/n) [опционально]"
-    read -r install_python
-    
-    if [ "$install_python" = "y" ] || [ "$install_python" = "Y" ]; then
-        print_info "Установка Python3..."
-        
-        if [ -f /etc/debian_version ]; then
-            sudo apt-get update || true
-            sudo apt-get install -y python3 python3-pip python3-venv || {
-                print_error "Не удалось установить Python3"
-                print_warning "Telegram бот не будет доступен"
-            }
-        elif [ -f /etc/redhat-release ]; then
-            sudo yum install -y python3 python3-pip || sudo dnf install -y python3 python3-pip || {
-                print_error "Не удалось установить Python3"
-                print_warning "Telegram бот не будет доступен"
-            }
-        else
-            print_warning "Автоустановка недоступна для вашей ОС"
-            print_warning "Telegram бот не будет доступен без Python3"
-        fi
-        
-        if check_command python3; then
-            print_success "Python3 успешно установлен"
-        fi
-    else
-        print_warning "Python3 не установлен. Telegram бот будет недоступен."
-    fi
-fi
-echo ""
-
-# ==========================================
-# Шаг 3: Установка SQLite (опционально)
-# ==========================================
-print_info "Шаг 3: Проверка SQLite..."
-echo ""
-
-if check_command sqlite3; then
-    print_success "SQLite3 установлен"
-else
-    print_warning "SQLite3 не найден (база данных всё равно будет работать через библиотеку)"
-    echo "Установить SQLite3 для администрирования БД? (y/n) [опционально]"
-    read -r install_sqlite
-    
-    if [ "$install_sqlite" = "y" ] || [ "$install_sqlite" = "Y" ]; then
-        if [ -f /etc/debian_version ]; then
-            sudo apt-get install -y sqlite3 || print_warning "Не удалось установить SQLite3"
-        elif [ -f /etc/redhat-release ]; then
-            sudo yum install -y sqlite || sudo dnf install -y sqlite || print_warning "Не удалось установить SQLite3"
-        fi
-        
-        if check_command sqlite3; then
-            print_success "SQLite3 успешно установлен"
-        fi
-    fi
-fi
-echo ""
-
-# ==========================================
-# Шаг 4: Установка зависимостей Node.js
-# ==========================================
-print_info "Шаг 4: Установка зависимостей Node.js..."
-echo ""
-
-install_npm_packages() {
-    print_info "Устанавливаем npm пакеты..."
-    
-    # Пробуем установить несколько раз с разными стратегиями
-    if npm install; then
-        print_success "npm пакеты успешно установлены"
-        return 0
-    fi
-    
-    print_warning "Первая попытка не удалась, пробуем с --legacy-peer-deps..."
-    if npm install --legacy-peer-deps; then
-        print_success "npm пакеты установлены с --legacy-peer-deps"
-        return 0
-    fi
-    
-    print_warning "Пробуем очистить кэш и установить снова..."
-    npm cache clean --force
-    if npm install; then
-        print_success "npm пакеты установлены после очистки кэша"
-        return 0
-    fi
-    
-    print_error "Не удалось установить npm пакеты"
-    return 1
 }
 
-if [ ! -d "node_modules" ]; then
-    install_npm_packages || exit 1
-else
-    print_warning "node_modules уже существует"
-    echo "Переустановить зависимости? (y/n) [рекомендуется: n]"
-    read -r reinstall_npm
+install_system_dependencies() {
+    log "Установка системных зависимостей..."
     
-    if [ "$reinstall_npm" = "y" ] || [ "$reinstall_npm" = "Y" ]; then
-        print_info "Удаляем старые пакеты..."
-        rm -rf node_modules package-lock.json
-        install_npm_packages || exit 1
-    else
-        print_info "Пропускаем установку npm пакетов"
-    fi
-fi
-echo ""
+    apt-get update
+    apt-get install -y \
+        curl \
+        wget \
+        git \
+        build-essential \
+        python3 \
+        python3-pip \
+        python3-venv \
+        sqlite3 \
+        nginx \
+        certbot \
+        python3-certbot-nginx \
+        supervisor \
+        ufw
+    
+    log "Системные зависимости установлены"
+}
 
-# ==========================================
-# Шаг 5: Установка Python зависимостей
-# ==========================================
-if check_command python3; then
-    print_info "Шаг 5: Установка зависимостей Python..."
-    echo ""
+install_nodejs() {
+    log "Установка Node.js 20..."
     
-    if [ -f "requirements.txt" ]; then
-        if [ ! -d "venv" ]; then
-            print_info "Создаём виртуальное окружение Python..."
-            python3 -m venv venv || {
-                print_warning "Не удалось создать виртуальное окружение"
-                print_info "Попытка установки пакетов глобально..."
-                pip3 install -r requirements.txt --user || print_warning "Не удалось установить Python пакеты"
-            }
+    if command -v node &> /dev/null; then
+        NODE_VERSION=$(node --version)
+        log "Node.js уже установлен: $NODE_VERSION"
+        read -p "Переустановить Node.js? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            return
         fi
-        
-        if [ -d "venv" ]; then
-            print_info "Устанавливаем Python пакеты..."
-            source venv/bin/activate
-            pip install --upgrade pip || true
-            pip install -r requirements.txt || print_warning "Некоторые Python пакеты не установлены"
-            deactivate
-            print_success "Python пакеты установлены"
+    fi
+    
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    apt-get install -y nodejs
+    
+    NODE_VERSION=$(node --version)
+    NPM_VERSION=$(npm --version)
+    log "Node.js установлен: $NODE_VERSION"
+    log "NPM установлен: $NPM_VERSION"
+}
+
+collect_env_variables() {
+    log "Сбор переменных окружения..."
+    
+    read -p "Введите домен для установки (например, armt.su): " DOMAIN
+    if [ -z "$DOMAIN" ]; then
+        error "Домен обязателен для установки"
+    fi
+    
+    read -p "Использовать SSL сертификаты Let's Encrypt? (y/n): " -n 1 -r USE_SSL
+    echo
+    
+    if [[ $USE_SSL =~ ^[Yy]$ ]]; then
+        read -p "Введите email для Let's Encrypt: " SSL_EMAIL
+        if [ -z "$SSL_EMAIL" ]; then
+            warn "Email не указан. Сертификаты не будут установлены."
+            USE_SSL="n"
         fi
-    else
-        print_warning "requirements.txt не найден"
-    fi
-    echo ""
-fi
-
-# ==========================================
-# Шаг 6: Настройка переменных окружения
-# ==========================================
-print_info "Шаг 6: Настройка переменных окружения..."
-echo ""
-
-if [ ! -f ".env" ]; then
-    print_info "Файл .env не найден. Создаём конфигурацию..."
-    echo ""
-    
-    # Запрашиваем данные у пользователя
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "📱 Настройка Telegram бота (опционально)"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "Токен Telegram бота (получите у @BotFather):"
-    echo "[Нажмите Enter, чтобы пропустить]"
-    read -r BOT_TOKEN
-    
-    if [ -z "$BOT_TOKEN" ]; then
-        BOT_TOKEN="your_telegram_bot_token_here"
-        print_warning "Telegram бот не настроен"
-    else
-        print_success "Telegram бот токен сохранён"
     fi
     
-    echo ""
-    echo "Ваш Telegram ID администратора (узнайте у @userinfobot):"
-    echo "[Нажмите Enter для значения по умолчанию: 123456789]"
-    read -r ADMIN_ID
+    read -p "Telegram Bot Token: " TELEGRAM_BOT_TOKEN
+    read -p "Admin Telegram IDs (через запятую): " ADMIN_IDS
+    read -p "Group ID для поддержки (опционально): " GROUP_ID
+    read -p "CryptoBot Token (опционально): " CRYPTO_BOT_TOKEN
     
-    if [ -z "$ADMIN_ID" ]; then
-        ADMIN_ID="123456789"
-    fi
-    
-    echo ""
-    echo "ID группы поддержки в Telegram (опционально):"
-    echo "[Нажмите Enter, чтобы пропустить]"
-    read -r GROUP_ID
-    
-    echo ""
-    echo "Токен CryptoBot для приёма платежей (опционально):"
-    echo "[Нажмите Enter, чтобы пропустить]"
-    read -r CRYPTO_BOT_TOKEN
-    
-    if [ -z "$CRYPTO_BOT_TOKEN" ]; then
-        CRYPTO_BOT_TOKEN="your_crypto_bot_token_here"
-    fi
-    
-    echo ""
-    print_info "Генерация секретного ключа для сессий..."
-    SESSION_SECRET=$(generate_secret)
-    
+    read -p "SESSION_SECRET (оставьте пустым для автогенерации): " SESSION_SECRET
     if [ -z "$SESSION_SECRET" ]; then
-        print_error "Не удалось сгенерировать SESSION_SECRET"
-        SESSION_SECRET="PLEASE_CHANGE_THIS_SECRET_KEY_$(date +%s)"
-        print_warning "Используется временный ключ. ОБЯЗАТЕЛЬНО смените его в .env!"
-    else
-        print_success "SESSION_SECRET сгенерирован"
+        SESSION_SECRET=$(openssl rand -hex 32)
+        log "Сгенерирован SESSION_SECRET: ${SESSION_SECRET:0:8}..."
     fi
     
-    # Создаём .env файл
-    cat > .env << EOF
-# ==========================================
-# ARMT VPN Platform - Конфигурация
-# ==========================================
-
-# Telegram Bot Configuration
-TELEGRAM_BOT_TOKEN=${BOT_TOKEN}
-BOT_TOKEN=${BOT_TOKEN}
-
-# Admin Configuration
-ADMIN_ID=${ADMIN_ID}
-
-# Telegram Support Group (optional)
-GROUP_ID=${GROUP_ID}
-
-# CryptoBot API for payments (optional)
-CRYPTO_BOT_TOKEN=${CRYPTO_BOT_TOKEN}
-
-# Session Secret for Web Application (ВАЖНО: сгенерирован автоматически)
-SESSION_SECRET=${SESSION_SECRET}
-
-# Database (используется автоматически - vpn_platform.db)
-# DATABASE_URL=file:./vpn_platform.db
-
-# Node Environment (development или production)
-NODE_ENV=development
-EOF
+    read -p "Порт для веб-приложения (по умолчанию 5000): " WEB_PORT
+    WEB_PORT=${WEB_PORT:-5000}
     
-    print_success "Файл .env создан"
-    echo ""
+    log "Переменные окружения собраны"
+}
+
+clone_repository() {
+    log "Клонирование репозитория из $GITHUB_REPO..."
     
-else
-    print_success "Файл .env уже существует"
-    echo "Просмотреть текущие настройки? (y/n)"
-    read -r view_env
-    
-    if [ "$view_env" = "y" ] || [ "$view_env" = "Y" ]; then
-        echo ""
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        grep -v "^#" .env | grep -v "^$" || echo "Пусто"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo ""
-    fi
-    
-    echo "Пересоздать файл .env? (y/n)"
-    read -r recreate_env
-    
-    if [ "$recreate_env" = "y" ] || [ "$recreate_env" = "Y" ]; then
-        BACKUP_ENV=".env.backup.$(date +%Y%m%d_%H%M%S)"
-        mv .env "$BACKUP_ENV"
-        print_success "Старый .env сохранён: $BACKUP_ENV"
-        
-        # Повторяем создание .env (копируем код выше)
-        echo ""
-        echo "Токен Telegram бота:"
-        read -r BOT_TOKEN
-        echo "Telegram ID администратора:"
-        read -r ADMIN_ID
-        echo "ID группы поддержки (Enter = пропустить):"
-        read -r GROUP_ID
-        echo "Токен CryptoBot (Enter = пропустить):"
-        read -r CRYPTO_BOT_TOKEN
-        
-        SESSION_SECRET=$(generate_secret)
-        
-        cat > .env << EOF
-# Telegram Bot Configuration
-TELEGRAM_BOT_TOKEN=${BOT_TOKEN:-your_telegram_bot_token_here}
-BOT_TOKEN=${BOT_TOKEN:-your_telegram_bot_token_here}
-
-# Admin Configuration
-ADMIN_ID=${ADMIN_ID:-123456789}
-
-# Telegram Support Group
-GROUP_ID=${GROUP_ID}
-
-# CryptoBot API for payments
-CRYPTO_BOT_TOKEN=${CRYPTO_BOT_TOKEN:-your_crypto_bot_token_here}
-
-# Session Secret for Web Application
-SESSION_SECRET=${SESSION_SECRET}
-
-# Node Environment
-NODE_ENV=development
-EOF
-        
-        print_success "Файл .env пересоздан"
-    fi
-fi
-echo ""
-
-# ==========================================
-# Шаг 7: База данных
-# ==========================================
-print_info "Шаг 7: Проверка базы данных..."
-echo ""
-
-if [ -f "vpn_platform.db" ]; then
-    DB_SIZE=$(du -h vpn_platform.db | cut -f1)
-    print_success "База данных существует (размер: $DB_SIZE)"
-    
-    echo "Создать резервную копию базы данных? (y/n) [рекомендуется: y]"
-    read -r backup_db
-    
-    if [ "$backup_db" = "y" ] || [ "$backup_db" = "Y" ]; then
-        BACKUP_NAME="backups/vpn_platform_backup_$(date +%Y%m%d_%H%M%S).db"
-        mkdir -p backups
-        cp vpn_platform.db "$BACKUP_NAME" || {
-            print_warning "Не удалось создать резервную копию"
-        }
-        
-        if [ -f "$BACKUP_NAME" ]; then
-            print_success "Резервная копия: $BACKUP_NAME"
+    if [ -d "$INSTALL_DIR" ]; then
+        warn "Директория $INSTALL_DIR уже существует"
+        read -p "Удалить существующую установку? (y/n): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            systemctl stop $BOT_SERVICE 2>/dev/null || true
+            systemctl stop $WEB_SERVICE 2>/dev/null || true
+            rm -rf "$INSTALL_DIR"
+            log "Существующая установка удалена"
+        else
+            error "Установка прервана"
         fi
     fi
-else
-    print_info "База данных будет создана при первом запуске"
-fi
-echo ""
-
-# ==========================================
-# Шаг 8: Сборка (опционально)
-# ==========================================
-print_info "Шаг 8: Сборка приложения..."
-echo ""
-
-echo "Собрать production версию? (y/n) [для разработки: n]"
-read -r build_app
-
-if [ "$build_app" = "y" ] || [ "$build_app" = "Y" ]; then
-    print_info "Запускаем сборку..."
     
-    if npm run build; then
-        print_success "Сборка завершена: dist/"
-    else
-        print_error "Ошибка при сборке"
-        print_warning "Используйте режим разработки: npm run dev"
+    git clone "$GITHUB_REPO" "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
+    
+    log "Репозиторий склонирован в $INSTALL_DIR"
+}
+
+create_env_file() {
+    log "Создание .env файла..."
+    
+    cat > "$INSTALL_DIR/.env" <<EOF
+TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
+BOT_TOKEN=$TELEGRAM_BOT_TOKEN
+ADMIN_ID=$ADMIN_IDS
+GROUP_ID=$GROUP_ID
+CRYPTO_BOT_TOKEN=$CRYPTO_BOT_TOKEN
+SESSION_SECRET=$SESSION_SECRET
+NODE_ENV=production
+DATABASE_URL=file:./vpn_platform.db
+DOMAIN=$DOMAIN
+EOF
+    
+    chmod 600 "$INSTALL_DIR/.env"
+    log ".env файл создан"
+}
+
+install_python_dependencies() {
+    log "Установка Python зависимостей для бота..."
+    
+    cd "$INSTALL_DIR"
+    
+    if [ ! -f "requirements.txt" ]; then
+        log "Файл requirements.txt не найден, создание базового списка зависимостей..."
+        cat > requirements.txt <<EOF
+python-telegram-bot==20.8
+python-dotenv==1.0.0
+aiohttp==3.9.1
+qrcode==7.4.2
+pillow==10.1.0
+EOF
     fi
-else
-    print_info "Пропускаем сборку (используйте npm run dev)"
-fi
-echo ""
+    
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install --upgrade pip
+    pip install -r requirements.txt
+    deactivate
+    
+    log "Python зависимости установлены"
+}
 
-# ==========================================
-# Завершение
-# ==========================================
-echo ""
-print_success "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-print_success "     УСТАНОВКА УСПЕШНО ЗАВЕРШЕНА!"
-print_success "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
+install_nodejs_dependencies() {
+    log "Установка Node.js зависимостей..."
+    
+    cd "$INSTALL_DIR"
+    npm install
+    
+    log "Node.js зависимости установлены"
+}
 
-echo "📝 Доступные команды:"
-echo ""
-echo "  1. Запуск в режиме разработки:"
-echo "     npm run dev"
-echo ""
-echo "  2. Запуск в production режиме:"
-echo "     npm run start"
-echo ""
-echo "  3. Запуск Telegram бота:"
-echo "     ./start-bot.sh"
-echo ""
-echo "  4. Создание администратора:"
-echo "     node add-admin.js"
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
+build_application() {
+    log "Сборка приложения..."
+    
+    cd "$INSTALL_DIR"
+    npm run build
+    
+    log "Приложение собрано"
+}
 
-echo "🚀 Запустить приложение сейчас? (y/n)"
-read -r start_now
+create_systemd_services() {
+    log "Создание systemd сервисов..."
+    
+    cat > "/etc/systemd/system/${BOT_SERVICE}.service" <<EOF
+[Unit]
+Description=ARMT VPN Telegram Bot
+After=network.target
 
-if [ "$start_now" = "y" ] || [ "$start_now" = "Y" ]; then
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$INSTALL_DIR
+Environment="PATH=$INSTALL_DIR/venv/bin:/usr/bin:/bin"
+ExecStart=$INSTALL_DIR/venv/bin/python telegram_bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    cat > "/etc/systemd/system/${WEB_SERVICE}.service" <<EOF
+[Unit]
+Description=ARMT VPN Web Application
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$INSTALL_DIR
+Environment="NODE_ENV=production"
+Environment="PORT=$WEB_PORT"
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    systemctl daemon-reload
+    log "Systemd сервисы созданы"
+}
+
+configure_nginx() {
+    log "Настройка Nginx..."
+    
+    cat > "/etc/nginx/sites-available/armt-vpn" <<EOF
+server {
+    listen 80;
+    server_name $DOMAIN www.$DOMAIN;
+
+    location / {
+        proxy_pass http://localhost:$WEB_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+    
+    ln -sf /etc/nginx/sites-available/armt-vpn /etc/nginx/sites-enabled/
+    rm -f /etc/nginx/sites-enabled/default
+    
+    nginx -t
+    systemctl restart nginx
+    
+    log "Nginx настроен"
+}
+
+setup_ssl() {
+    if [[ $USE_SSL =~ ^[Yy]$ ]]; then
+        log "Установка SSL сертификатов Let's Encrypt..."
+        
+        certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos -m $SSL_EMAIL
+        
+        log "SSL сертификаты установлены"
+    else
+        log "SSL сертификаты не установлены. Сайт будет работать по HTTP"
+    fi
+}
+
+configure_firewall() {
+    log "Настройка файрвола (UFW)..."
+    
+    ufw --force enable
+    ufw allow 22/tcp
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    ufw allow $WEB_PORT/tcp
+    
+    log "Файрвол настроен"
+}
+
+start_services() {
+    log "Запуск сервисов..."
+    
+    systemctl enable $BOT_SERVICE
+    systemctl enable $WEB_SERVICE
+    systemctl start $BOT_SERVICE
+    systemctl start $WEB_SERVICE
+    
+    sleep 5
+    
+    if systemctl is-active --quiet $BOT_SERVICE; then
+        log "✓ Telegram бот запущен успешно"
+    else
+        error "✗ Не удалось запустить Telegram бота. Проверьте: systemctl status $BOT_SERVICE"
+    fi
+    
+    if systemctl is-active --quiet $WEB_SERVICE; then
+        log "✓ Веб-приложение запущено успешно"
+    else
+        error "✗ Не удалось запустить веб-приложение. Проверьте: systemctl status $WEB_SERVICE"
+    fi
+}
+
+initialize_database() {
+    log "Инициализация базы данных..."
+    
+    cd "$INSTALL_DIR"
+    
+    if [ -f "vpn_platform.db" ]; then
+        warn "База данных уже существует"
+        read -p "Пересоздать базу данных? (y/n): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            rm -f vpn_platform.db
+            log "Существующая база данных удалена"
+        fi
+    fi
+    
+    if [ -f "server/seed.ts" ]; then
+        npm run dev &
+        SERVER_PID=$!
+        sleep 10
+        kill $SERVER_PID 2>/dev/null || true
+        log "База данных инициализирована"
+    else
+        log "Скрипт инициализации БД не найден, база создастся при первом запуске"
+    fi
+}
+
+print_summary() {
     echo ""
-    print_info "Запускаем веб-приложение..."
-    print_info "Нажмите Ctrl+C для остановки"
+    echo -e "${GREEN}╔═══════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║           Установка завершена успешно!           ║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════════════╝${NC}"
     echo ""
-    print_info "Приложение будет доступно: http://localhost:5000"
+    echo -e "${BLUE}Информация об установке:${NC}"
+    echo -e "  Директория: ${GREEN}$INSTALL_DIR${NC}"
+    echo -e "  Домен: ${GREEN}$DOMAIN${NC}"
+    echo -e "  Порт: ${GREEN}$WEB_PORT${NC}"
+    if [[ $USE_SSL =~ ^[Yy]$ ]]; then
+        echo -e "  URL: ${GREEN}https://$DOMAIN${NC}"
+    else
+        echo -e "  URL: ${GREEN}http://$DOMAIN${NC}"
+    fi
     echo ""
-    sleep 2
-    npm run dev
-else
+    echo -e "${BLUE}Сервисы:${NC}"
+    echo -e "  Telegram бот: ${GREEN}systemctl status $BOT_SERVICE${NC}"
+    echo -e "  Веб-приложение: ${GREEN}systemctl status $WEB_SERVICE${NC}"
     echo ""
-    print_info "Для запуска используйте: npm run dev"
+    echo -e "${BLUE}Управление сервисами:${NC}"
+    echo -e "  Запуск: ${GREEN}systemctl start $BOT_SERVICE / $WEB_SERVICE${NC}"
+    echo -e "  Остановка: ${GREEN}systemctl stop $BOT_SERVICE / $WEB_SERVICE${NC}"
+    echo -e "  Перезапуск: ${GREEN}systemctl restart $BOT_SERVICE / $WEB_SERVICE${NC}"
+    echo -e "  Логи: ${GREEN}journalctl -u $BOT_SERVICE / $WEB_SERVICE -f${NC}"
     echo ""
-    echo "📚 Документация:"
-    echo "   - README.md - общая информация"
-    echo "   - INSTALL.md - подробная инструкция"
-    echo "   - ADMIN_GUIDE.md - руководство администратора"
+    echo -e "${BLUE}Доступ к админ-панели:${NC}"
+    if [[ $USE_SSL =~ ^[Yy]$ ]]; then
+        echo -e "  URL: ${GREEN}https://$DOMAIN/admin${NC}"
+    else
+        echo -e "  URL: ${GREEN}http://$DOMAIN/admin${NC}"
+    fi
+    echo -e "  Email: ${GREEN}owner@armt.su${NC}"
+    echo -e "  Пароль: ${GREEN}owner123${NC}"
     echo ""
-    print_success "Готово к работе!"
+    echo -e "${YELLOW}⚠  ВАЖНО: Смените пароль администратора после первого входа!${NC}"
     echo ""
-fi
+    echo -e "${BLUE}Логи установки: ${GREEN}$LOG_FILE${NC}"
+    echo ""
+}
+
+main() {
+    print_header
+    
+    log "Начало установки ARMT VPN Platform..."
+    
+    check_root
+    check_ubuntu
+    
+    log "Создание лог-файла: $LOG_FILE"
+    touch "$LOG_FILE"
+    
+    install_system_dependencies
+    install_nodejs
+    collect_env_variables
+    clone_repository
+    create_env_file
+    install_python_dependencies
+    install_nodejs_dependencies
+    initialize_database
+    build_application
+    create_systemd_services
+    configure_nginx
+    configure_firewall
+    setup_ssl
+    start_services
+    
+    print_summary
+    
+    log "Установка завершена успешно!"
+}
+
+main "$@"
