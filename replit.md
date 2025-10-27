@@ -197,6 +197,8 @@ Preferred communication style: Simple, everyday language.
 - Created custom 404 page with cat image, "ОКАК" text, and animated "404" design
 - Added responsive design for 404 page with breakpoints for mobile/tablet/desktop
 - Backend DELETE endpoint for VPN profiles with ownership verification
+- Fixed 404 page z-index: cat image now appears in foreground (z-50) above "404" text (z-10)
+- Cleaned up database: removed empty promocode entry that existed before validation was added
 
 ## Recent Changes (October 26, 2025)
 
