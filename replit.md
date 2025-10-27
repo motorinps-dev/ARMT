@@ -187,6 +187,17 @@ Preferred communication style: Simple, everyday language.
 - **@replit/vite-plugin-cartographer**: Replit-specific development tooling
 - **@replit/vite-plugin-dev-banner**: Development environment indicators
 
+## Recent Changes (October 27, 2025)
+
+**Latest Updates**
+- Added promo code validation to prevent creating codes with empty names (min 1 char, max 50 chars, trimmed)
+- Implemented device management UI with device counter showing "X/5 devices" limit
+- Added delete device functionality with confirmation dialog
+- Changed VPN profile cards to display as "Устройство #N" (Device #N) instead of server numbers
+- Created custom 404 page with cat image, "ОКАК" text, and animated "404" design
+- Added responsive design for 404 page with breakpoints for mobile/tablet/desktop
+- Backend DELETE endpoint for VPN profiles with ownership verification
+
 ## Recent Changes (October 26, 2025)
 
 **Admin Account Migration (Latest)**
