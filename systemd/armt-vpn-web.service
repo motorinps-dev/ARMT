@@ -4,13 +4,14 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
-WorkingDirectory=/var/www/armt-vpn
-Environment="NODE_ENV=production"
-EnvironmentFile=/var/www/armt-vpn/.env
-ExecStart=/usr/bin/node /var/www/armt-vpn/dist/index.js
+User=root
+WorkingDirectory=/opt/armt-vpn
+EnvironmentFile=/opt/armt-vpn/.env
+ExecStart=/usr/bin/node /opt/armt-vpn/dist/index.js
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target

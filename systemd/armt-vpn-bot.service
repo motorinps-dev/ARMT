@@ -4,12 +4,14 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
-WorkingDirectory=/var/www/armt-vpn
-EnvironmentFile=/var/www/armt-vpn/.env
-ExecStart=/var/www/armt-vpn/venv/bin/python3 /var/www/armt-vpn/attached_assets/bot_1761427044553.py
+User=root
+WorkingDirectory=/opt/armt-vpn
+EnvironmentFile=/opt/armt-vpn/.env
+ExecStart=/opt/armt-vpn/venv/bin/python /opt/armt-vpn/telegram_bot.py
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
