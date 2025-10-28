@@ -1,0 +1,35 @@
+To see these additional updates run: apt list --upgradable
+
+Enable ESM Apps to receive additional future security updates.
+See https://ubuntu.com/esm or run: sudo pro status
+
+
+Last login: Tue Oct 28 00:21:20 2025 from 152.89.134.178
+root@armt:~# journalctl -u armt-vpn-bot -f
+Oct 28 00:27:18 armt.aeza.network systemd[1]: armt-vpn-bot.service: Main process exited, code=exited, status=1/FAILURE
+Oct 28 00:27:18 armt.aeza.network systemd[1]: armt-vpn-bot.service: Failed with result 'exit-code'.
+Oct 28 00:27:29 armt.aeza.network systemd[1]: armt-vpn-bot.service: Scheduled restart job, restart counter is at 7.
+Oct 28 00:27:29 armt.aeza.network systemd[1]: Started armt-vpn-bot.service - ARMT VPN Telegram Bot.
+Oct 28 00:27:29 armt.aeza.network python[30261]: Traceback (most recent call last):
+Oct 28 00:27:29 armt.aeza.network python[30261]:   File "/opt/armt-vpn/telegram_bot.py", line 43, in <module>
+Oct 28 00:27:29 armt.aeza.network python[30261]:     (
+Oct 28 00:27:29 armt.aeza.network python[30261]: ValueError: too many values to unpack (expected 46)
+Oct 28 00:27:29 armt.aeza.network systemd[1]: armt-vpn-bot.service: Main process exited, code=exited, status=1/FAILURE
+Oct 28 00:27:29 armt.aeza.network systemd[1]: armt-vpn-bot.service: Failed with result 'exit-code'.
+Oct 28 00:27:39 armt.aeza.network systemd[1]: armt-vpn-bot.service: Scheduled restart job, restart counter is at 8.
+Oct 28 00:27:39 armt.aeza.network systemd[1]: Started armt-vpn-bot.service - ARMT VPN Telegram Bot.
+Oct 28 00:27:39 armt.aeza.network python[30330]: Traceback (most recent call last):
+Oct 28 00:27:39 armt.aeza.network python[30330]:   File "/opt/armt-vpn/telegram_bot.py", line 43, in <module>
+Oct 28 00:27:39 armt.aeza.network python[30330]:     (
+Oct 28 00:27:39 armt.aeza.network python[30330]: ValueError: too many values to unpack (expected 46)
+Oct 28 00:27:39 armt.aeza.network systemd[1]: armt-vpn-bot.service: Main process exited, code=exited, status=1/FAILURE
+Oct 28 00:27:39 armt.aeza.network systemd[1]: armt-vpn-bot.service: Failed with result 'exit-code'.
+Oct 28 00:27:49 armt.aeza.network systemd[1]: armt-vpn-bot.service: Scheduled restart job, restart counter is at 9.
+Oct 28 00:27:49 armt.aeza.network systemd[1]: Started armt-vpn-bot.service - ARMT VPN Telegram Bot.
+Oct 28 00:27:50 armt.aeza.network python[30336]: Traceback (most recent call last):
+Oct 28 00:27:50 armt.aeza.network python[30336]:   File "/opt/armt-vpn/telegram_bot.py", line 43, in <module>
+Oct 28 00:27:50 armt.aeza.network python[30336]:     (
+Oct 28 00:27:50 armt.aeza.network python[30336]: ValueError: too many values to unpack (expected 46)
+Oct 28 00:27:50 armt.aeza.network systemd[1]: armt-vpn-bot.service: Main process exited, code=exited, status=1/FAILURE
+Oct 28 00:27:50 armt.aeza.network systemd[1]: armt-vpn-bot.service: Failed with result 'exit-code'.
+
