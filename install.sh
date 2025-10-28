@@ -118,24 +118,33 @@ install_nodejs() {
         
         warn "Обнаружена старая версия Node.js: $NODE_VERSION"
         info "Автоматическое обновление до Node.js 20..."
-        
-        apt-get remove -y nodejs npm 2>/dev/null || true
     fi
 
-    info "Загрузка и установка Node.js 20 из NodeSource..."
+    info "Полное удаление старых версий Node.js и связанных пакетов..."
+    export DEBIAN_FRONTEND=noninteractive
     
+    apt-get remove -y --purge nodejs npm libnode-dev libnode72 node-* 2>/dev/null || true
+    apt-get autoremove -y 2>/dev/null || true
+    apt-get autoclean -y 2>/dev/null || true
+    
+    rm -rf /usr/local/bin/node* 2>/dev/null || true
+    rm -rf /usr/local/lib/node* 2>/dev/null || true
+    rm -rf /usr/local/include/node* 2>/dev/null || true
+    rm -rf /usr/share/man/*/node* 2>/dev/null || true
     rm -rf /etc/apt/sources.list.d/nodesource.list* 2>/dev/null || true
     rm -rf /usr/share/keyrings/nodesource.gpg 2>/dev/null || true
+
+    info "Загрузка и установка Node.js 20 из NodeSource..."
     
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg
     
     echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
     
     apt-get update -qq
-    apt-get install -y nodejs 2>&1 | grep -v "^$" || true
+    apt-get install -y nodejs 2>&1 | tee -a "$LOG_FILE"
 
     if ! command -v node &> /dev/null; then
-        error "Не удалось установить Node.js. Проверьте подключение к интернету."
+        error "Не удалось установить Node.js. Проверьте логи: $LOG_FILE"
     fi
 
     NODE_VERSION=$(node --version)
