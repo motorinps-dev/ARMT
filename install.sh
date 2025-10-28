@@ -509,11 +509,26 @@ setup_ssl() {
     if [[ $USE_SSL =~ ^[Yy]$ ]] && [ "$HTTPS_PORT" == "443" ]; then
         log "Установка SSL сертификатов через Let's Encrypt..."
         
-        systemctl restart nginx
+        ln -sf /etc/nginx/sites-available/armt-vpn /etc/nginx/sites-enabled/
         
-        certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m $SSL_EMAIL
-        
-        log "✓ SSL сертификаты от Let's Encrypt установлены"
+        if nginx -t 2>&1 | tee -a "$LOG_FILE"; then
+            systemctl restart nginx
+            certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m $SSL_EMAIL
+            log "✓ SSL сертификаты от Let's Encrypt установлены"
+        else
+            warn "Ошибка в конфигурации Nginx при тестировании"
+            info "Проверка основного файла Nginx..."
+            nginx -t 2>&1 | tee -a "$LOG_FILE"
+            
+            info "Временно отключаем конфигурацию ARMT VPN..."
+            rm -f /etc/nginx/sites-enabled/armt-vpn
+            
+            if nginx -t 2>&1 | tee -a "$LOG_FILE"; then
+                error "Конфликт в /etc/nginx/sites-available/armt-vpn. Проверьте вручную."
+            else
+                error "Проблема в основной конфигурации Nginx (/etc/nginx/nginx.conf). Возможно, 3X-UI создал конфликт."
+            fi
+        fi
         
     elif [ "$HTTPS_PORT" != "443" ]; then
         log "Создание SSL сертификатов для порта $HTTPS_PORT..."
@@ -534,24 +549,48 @@ setup_ssl() {
             log "✓ Самоподписанный сертификат создан"
         fi
         
+        info "Активация конфигурации Nginx..."
         ln -sf /etc/nginx/sites-available/armt-vpn /etc/nginx/sites-enabled/
         
-        if nginx -t 2>&1; then
+        info "Тестирование конфигурации Nginx..."
+        if nginx -t 2>&1 | tee -a "$LOG_FILE"; then
             systemctl restart nginx
             log "✓ Nginx перезапущен с новой конфигурацией"
         else
-            error "Ошибка в конфигурации Nginx. Проверьте файл: /etc/nginx/sites-available/armt-vpn"
+            warn "Ошибка в конфигурации Nginx при тестировании"
+            info "Проверка основного файла Nginx..."
+            
+            info "Временно отключаем конфигурацию ARMT VPN..."
+            rm -f /etc/nginx/sites-enabled/armt-vpn
+            
+            if nginx -t 2>&1 | tee -a "$LOG_FILE"; then
+                warn "Конфликт в /etc/nginx/sites-available/armt-vpn"
+                warn "Файл конфигурации создан, но не активирован."
+                warn "Активируйте вручную после проверки:"
+                warn "  sudo ln -sf /etc/nginx/sites-available/armt-vpn /etc/nginx/sites-enabled/"
+                warn "  sudo nginx -t"
+                warn "  sudo systemctl restart nginx"
+            else
+                warn "Проблема в основной конфигурации Nginx (/etc/nginx/nginx.conf)"
+                warn "Возможно, 3X-UI или другой сервис создал конфликт."
+                warn "Файл конфигурации ARMT VPN создан: /etc/nginx/sites-available/armt-vpn"
+                warn "Исправьте /etc/nginx/nginx.conf и активируйте вручную:"
+                warn "  sudo nginx -t"
+                warn "  sudo ln -sf /etc/nginx/sites-available/armt-vpn /etc/nginx/sites-enabled/"
+                warn "  sudo systemctl restart nginx"
+            fi
         fi
     else
         warn "SSL сертификаты не установлены. Сайт будет работать по HTTP"
         
         ln -sf /etc/nginx/sites-available/armt-vpn /etc/nginx/sites-enabled/
         
-        if nginx -t 2>&1; then
+        if nginx -t 2>&1 | tee -a "$LOG_FILE"; then
             systemctl restart nginx
             log "✓ Nginx перезапущен"
         else
-            error "Ошибка в конфигурации Nginx"
+            warn "Ошибка в конфигурации Nginx"
+            rm -f /etc/nginx/sites-enabled/armt-vpn
         fi
     fi
 }
