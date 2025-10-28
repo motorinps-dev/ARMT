@@ -81,6 +81,7 @@ check_network() {
 install_system_dependencies() {
     log "Установка системных зависимостей..."
 
+    export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
     apt-get install -y -qq \
         curl \
@@ -96,7 +97,9 @@ install_system_dependencies() {
         python3-certbot-nginx \
         ufw \
         openssl \
-        net-tools 2>&1 | grep -v "^$" || true
+        net-tools \
+        ca-certificates \
+        gnupg 2>&1 | grep -v "^$" || true
 
     log "✓ Системные зависимости установлены"
 }
@@ -113,19 +116,35 @@ install_nodejs() {
             return
         fi
         
-        warn "Обнаружена старая версия Node.js"
-        read -p "Обновить до Node.js 20? (y/n): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            return
-        fi
+        warn "Обнаружена старая версия Node.js: $NODE_VERSION"
+        info "Автоматическое обновление до Node.js 20..."
+        
+        apt-get remove -y nodejs npm 2>/dev/null || true
     fi
 
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - > /dev/null 2>&1
-    apt-get install -y nodejs > /dev/null 2>&1
+    info "Загрузка и установка Node.js 20 из NodeSource..."
+    
+    rm -rf /etc/apt/sources.list.d/nodesource.list* 2>/dev/null || true
+    rm -rf /usr/share/keyrings/nodesource.gpg 2>/dev/null || true
+    
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg
+    
+    echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
+    
+    apt-get update -qq
+    apt-get install -y nodejs 2>&1 | grep -v "^$" || true
+
+    if ! command -v node &> /dev/null; then
+        error "Не удалось установить Node.js. Проверьте подключение к интернету."
+    fi
 
     NODE_VERSION=$(node --version)
     NPM_VERSION=$(npm --version)
+    
+    if [[ "$NODE_VERSION" != v20* ]]; then
+        error "Установлена неправильная версия Node.js: $NODE_VERSION (требуется v20.x)"
+    fi
+    
     log "✓ Node.js установлен: $NODE_VERSION"
     log "✓ NPM установлен: $NPM_VERSION"
 }
@@ -137,7 +156,6 @@ collect_env_variables() {
     echo -e "${CYAN}═══════════════════════════════════════════════════${NC}"
     echo ""
     
-    # Домен
     while true; do
         read -p "$(echo -e ${BLUE}→${NC}) Введите домен (например, vip.armt.su): " DOMAIN
         if [ -n "$DOMAIN" ]; then
@@ -147,7 +165,6 @@ collect_env_variables() {
     done
     log "Домен: $DOMAIN"
     
-    # HTTPS порт
     echo ""
     info "Для стандартной установки используйте порт 443"
     info "Для vip.armt.su используйте порт 4443"
@@ -155,10 +172,8 @@ collect_env_variables() {
     HTTPS_PORT=${HTTPS_PORT:-443}
     log "HTTPS порт: $HTTPS_PORT"
     
-    # SSL
     echo ""
-    read -p "$(echo -e ${BLUE}→${NC}) Установить SSL сертификаты Let's Encrypt? (y/n): " -n 1 -r USE_SSL
-    echo
+    read -p "$(echo -e ${BLUE}→${NC}) Установить SSL сертификаты Let's Encrypt? (y/n): " USE_SSL
     
     if [[ $USE_SSL =~ ^[Yy]$ ]]; then
         read -p "$(echo -e ${BLUE}→${NC}) Email для Let's Encrypt: " SSL_EMAIL
@@ -170,7 +185,6 @@ collect_env_variables() {
         fi
     fi
     
-    # Telegram Bot Token
     echo ""
     echo -e "${YELLOW}Telegram Bot Configuration${NC}"
     info "Создайте бота через @BotFather в Telegram"
@@ -182,7 +196,6 @@ collect_env_variables() {
         warn "Bot Token обязателен!"
     done
     
-    # Admin IDs
     echo ""
     info "Получите ваш Telegram ID через @userinfobot"
     while true; do
@@ -193,18 +206,15 @@ collect_env_variables() {
         warn "Хотя бы один Admin ID обязателен!"
     done
     
-    # Group ID (опционально)
     echo ""
     read -p "$(echo -e ${BLUE}→${NC}) Group ID для поддержки [пусто = пропустить]: " GROUP_ID
     GROUP_ID=${GROUP_ID:-}
     
-    # CryptoBot Token (опционально)
     echo ""
     info "CryptoBot используется для приёма платежей в криптовалюте"
     read -p "$(echo -e ${BLUE}→${NC}) CryptoBot Token [пусто = пропустить]: " CRYPTO_BOT_TOKEN
     CRYPTO_BOT_TOKEN=${CRYPTO_BOT_TOKEN:-}
     
-    # Session Secret
     echo ""
     read -p "$(echo -e ${BLUE}→${NC}) SESSION_SECRET [Enter = автогенерация]: " SESSION_SECRET
     if [ -z "$SESSION_SECRET" ]; then
@@ -212,7 +222,6 @@ collect_env_variables() {
         log "✓ Сгенерирован SESSION_SECRET"
     fi
     
-    # Web Port
     echo ""
     read -p "$(echo -e ${BLUE}→${NC}) Внутренний порт для Node.js [5000]: " WEB_PORT
     WEB_PORT=${WEB_PORT:-5000}
@@ -227,7 +236,7 @@ clone_repository() {
     if [ -d "$INSTALL_DIR" ]; then
         warn "Директория $INSTALL_DIR уже существует"
         
-        if systemctl is-active --quiet $WEB_SERVICE || systemctl is-active --quiet $BOT_SERVICE; then
+        if systemctl is-active --quiet $WEB_SERVICE 2>/dev/null || systemctl is-active --quiet $BOT_SERVICE 2>/dev/null; then
             info "Остановка запущенных сервисов..."
             systemctl stop $BOT_SERVICE 2>/dev/null || true
             systemctl stop $WEB_SERVICE 2>/dev/null || true
@@ -239,7 +248,10 @@ clone_repository() {
         log "✓ Резервная копия создана"
     fi
 
-    git clone -q "$GITHUB_REPO" "$INSTALL_DIR"
+    if ! git clone -q "$GITHUB_REPO" "$INSTALL_DIR" 2>&1; then
+        error "Не удалось склонировать репозиторий. Проверьте доступ к GitHub."
+    fi
+    
     cd "$INSTALL_DIR"
 
     log "✓ Репозиторий склонирован в $INSTALL_DIR"
@@ -316,7 +328,10 @@ install_nodejs_dependencies() {
     cd "$INSTALL_DIR"
     
     info "Это может занять несколько минут..."
-    npm install --loglevel=error
+    
+    if ! npm install --loglevel=error 2>&1 | tee -a "$LOG_FILE"; then
+        error "Не удалось установить Node.js зависимости. Проверьте логи."
+    fi
 
     log "✓ Node.js зависимости установлены"
 }
@@ -345,7 +360,10 @@ build_application() {
     cd "$INSTALL_DIR"
     
     info "Компиляция TypeScript и сборка фронтенда..."
-    npm run build
+    
+    if ! npm run build 2>&1 | tee -a "$LOG_FILE"; then
+        error "Не удалось собрать приложение. Проверьте логи."
+    fi
 
     log "✓ Приложение собрано"
 }
