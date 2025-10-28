@@ -38,9 +38,6 @@ export default function Landing() {
               <a href="#pricing" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 Цены
               </a>
-              <a href="/installer/install-armt-vpn.sh" download data-testid="link-download" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                Скачать
-              </a>
               <a href="#contacts" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 Контакты
               </a>
