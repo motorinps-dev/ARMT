@@ -11,9 +11,20 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes
 
 **October 28, 2025**
+- **Implemented protected Linux installer system with multi-level security:**
+  - Created secure `.sh` installer (`installer/install-armt-vpn.sh`) with license validation
+  - Added license management database table and API endpoints
+  - Implemented hardware binding (machine-id) for one device per license
+  - Added online license validation endpoint (`POST /api/v1/license/validate`)
+  - Created admin endpoints for license management (create, list, deactivate)
+  - Implemented cryptographic license key generation (format: ARMT-XXXX-XXXX-XXXX)
+  - Added comprehensive security documentation (`installer/SECURITY.md`, `installer/README.md`, `installer/SETUP_GUIDE.md`)
+  - Protected installer files with `.htaccess` rules
+  - Full integration with existing user system
 - Created installer/download page (`/download`) with support for all major platforms (Windows, macOS, Linux, Android, iOS)
   - Features platform-specific download cards with version info and file sizes
   - Includes step-by-step installation instructions for each platform
+  - Linux installer now downloads the protected .sh file with license verification
   - Added "Скачать" (Download) link to main navigation menu
   - Fully responsive design with dark mode support
 - Fixed critical bug in `telegram_bot.py`: Changed `range(53)` to `range(46)` to match the actual number of state constants (46 variables). This resolves the "ValueError: too many values to unpack" error that prevented the Telegram bot from starting.
@@ -49,6 +60,14 @@ The platform uses `better-sqlite3` for a local SQLite database (`vpn_platform.db
 - **VPN Connection UX**: Generates QR codes for VPN configurations and provides detailed setup instructions for various VPN clients across platforms.
 - **Support System**: Features a chat-style messaging system for user and admin communication on support tickets.
 - **Admin Settings Management**: Allows administrators to configure site operational modes (demo, maintenance, production), profiles per purchase, Telegram bot settings (token, admin IDs, support group ID), CryptoBot token, minimum deposit amounts, referral bonuses, and trial period settings directly from the admin panel.
+- **License Management System**: 
+  - Cryptographic license key generation (ARMT-XXXX-XXXX-XXXX format)
+  - Hardware binding to prevent unauthorized copying (machine-id based)
+  - Online validation for each installation attempt
+  - Activation tracking and limits enforcement
+  - Automatic license generation on subscription purchase (can be integrated)
+  - Admin panel for license creation, viewing, and deactivation
+  - Protected Linux installer with multi-level security (encryption, obfuscation, checksums)
 
 ### Development Environment
 

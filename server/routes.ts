@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import licenseRoutes from "./routes/licenses";
 import bcrypt from "bcrypt";
 import storage from "./storage";
 import {
@@ -865,6 +866,9 @@ export function registerRoutes(app: Express): Server {
       res.status(400).json({ message: error.message || "Ошибка обновления настройки бота" });
     }
   });
+
+  // License routes
+  app.use(licenseRoutes);
 
   const httpServer = createServer(app);
   return httpServer;

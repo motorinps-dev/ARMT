@@ -42,9 +42,9 @@ export default function Installer() {
       name: "Linux",
       icon: SiLinux,
       version: "Ubuntu/Debian",
-      size: "20 MB",
-      downloadUrl: "#",
-      description: "Совместимо с Ubuntu 20.04+, Debian 11+"
+      size: "15 KB",
+      downloadUrl: "/installer/install-armt-vpn.sh",
+      description: "Защищенный установщик с проверкой лицензии"
     },
     {
       id: "android",
@@ -82,11 +82,11 @@ export default function Installer() {
       "Войдите в аккаунт и подключитесь"
     ],
     linux: [
-      "Скачайте .deb или .rpm пакет в зависимости от дистрибутива",
-      "Установите пакет: sudo dpkg -i armt-vpn.deb (для Ubuntu/Debian)",
-      "Или: sudo rpm -i armt-vpn.rpm (для Fedora/RedHat)",
-      "Запустите: armt-vpn или найдите в меню приложений",
-      "Авторизуйтесь и подключитесь к серверу"
+      "Скачайте install-armt-vpn.sh и сделайте его исполняемым: chmod +x install-armt-vpn.sh",
+      "Запустите установщик с правами root: sudo ./install-armt-vpn.sh",
+      "Введите ваш лицензионный ключ (формат: XXXX-XXXX-XXXX-XXXX)",
+      "Дождитесь завершения установки и проверки лицензии",
+      "Запустите клиент командой: armt-vpn или через системное меню"
     ],
     android: [
       "Скачайте APK-файл или установите через Google Play",

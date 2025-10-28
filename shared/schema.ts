@@ -368,3 +368,38 @@ export const updateBotSettingSchema = z.object({
 
 export type UpdateSiteSetting = z.infer<typeof updateSiteSettingSchema>;
 export type UpdateBotSetting = z.infer<typeof updateBotSettingSchema>;
+
+// ============================================
+// LICENSE SCHEMAS
+// ============================================
+
+export const licenseSchema = z.object({
+  id: z.number(),
+  license_key: z.string(),
+  user_id: z.number(),
+  machine_id: z.string().nullable(),
+  activation_date: z.string().nullable(),
+  expiration_date: z.string(),
+  is_active: z.number().default(1),
+  max_activations: z.number().default(1),
+  current_activations: z.number().default(0),
+  created_at: z.string(),
+});
+
+export const insertLicenseSchema = licenseSchema.omit({ 
+  id: true, 
+  created_at: true,
+  current_activations: true,
+  activation_date: true,
+  machine_id: true,
+});
+
+export const validateLicenseSchema = z.object({
+  key: z.string().regex(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/, "Неверный формат лицензионного ключа"),
+  machine_id: z.string().min(1, "Machine ID обязателен"),
+  version: z.string().optional(),
+});
+
+export type License = z.infer<typeof licenseSchema>;
+export type InsertLicense = z.infer<typeof insertLicenseSchema>;
+export type ValidateLicense = z.infer<typeof validateLicenseSchema>;

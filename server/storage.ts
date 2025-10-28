@@ -23,6 +23,8 @@ import type {
   InsertSupportMessage,
   BotSettings,
   InsertBotSettings,
+  License,
+  InsertLicense,
 } from "@shared/schema";
 
 const db = new Database("vpn_platform.db");
@@ -148,6 +150,20 @@ db.exec(`
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS licenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    license_key TEXT UNIQUE NOT NULL,
+    user_id INTEGER NOT NULL,
+    machine_id TEXT,
+    activation_date TEXT,
+    expiration_date TEXT NOT NULL,
+    is_active INTEGER DEFAULT 1,
+    max_activations INTEGER DEFAULT 1,
+    current_activations INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
   CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   CREATE INDEX IF NOT EXISTS idx_vpn_profiles_user_id ON vpn_profiles(user_id);
@@ -156,6 +172,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON support_tickets(user_id);
   CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(status);
   CREATE INDEX IF NOT EXISTS idx_support_messages_ticket_id ON support_messages(ticket_id);
+  CREATE INDEX IF NOT EXISTS idx_licenses_license_key ON licenses(license_key);
+  CREATE INDEX IF NOT EXISTS idx_licenses_user_id ON licenses(user_id);
+  CREATE INDEX IF NOT EXISTS idx_licenses_machine_id ON licenses(machine_id);
 `);
 
 function addColumnIfNotExists(tableName: string, columnName: string, columnDef: string) {
@@ -282,6 +301,15 @@ export interface IStorage {
     get(key: string): string | undefined;
     set(key: string, value: string): void;
     getAll(): Record<string, string>;
+  };
+  licenses: {
+    create(license: InsertLicense): License;
+    findById(id: number): License | undefined;
+    findByKey(key: string): License | undefined;
+    findByUserId(userId: number): License[];
+    list(): License[];
+    activate(key: string, machineId: string): License | undefined;
+    update(id: number, data: Partial<License>): License | undefined;
   };
 }
 
@@ -696,6 +724,93 @@ const storage: IStorage = {
       const stmt = db.prepare("SELECT key, value FROM bot_settings");
       const rows = stmt.all() as { key: string; value: string }[];
       return Object.fromEntries(rows.map(row => [row.key, row.value]));
+    },
+  },
+
+  licenses: {
+    create(license: InsertLicense): License {
+      const stmt = db.prepare(`
+        INSERT INTO licenses (license_key, user_id, expiration_date, is_active, max_activations)
+        VALUES (@license_key, @user_id, @expiration_date, @is_active, @max_activations)
+      `);
+      const result = stmt.run({
+        license_key: license.license_key,
+        user_id: license.user_id,
+        expiration_date: license.expiration_date,
+        is_active: license.is_active ?? 1,
+        max_activations: license.max_activations ?? 1,
+      });
+      const stmt2 = db.prepare("SELECT * FROM licenses WHERE id = ?");
+      return stmt2.get(result.lastInsertRowid) as License;
+    },
+
+    findById(id: number): License | undefined {
+      const stmt = db.prepare("SELECT * FROM licenses WHERE id = ?");
+      return stmt.get(id) as License | undefined;
+    },
+
+    findByKey(key: string): License | undefined {
+      const stmt = db.prepare("SELECT * FROM licenses WHERE license_key = ?");
+      return stmt.get(key) as License | undefined;
+    },
+
+    findByUserId(userId: number): License[] {
+      const stmt = db.prepare("SELECT * FROM licenses WHERE user_id = ? ORDER BY created_at DESC");
+      return stmt.all(userId) as License[];
+    },
+
+    list(): License[] {
+      const stmt = db.prepare("SELECT * FROM licenses ORDER BY created_at DESC");
+      return stmt.all() as License[];
+    },
+
+    activate(key: string, machineId: string): License | undefined {
+      const license = this.findByKey(key);
+      if (!license) return undefined;
+
+      const stmt = db.prepare(`
+        UPDATE licenses 
+        SET machine_id = ?, 
+            activation_date = datetime('now'),
+            current_activations = current_activations + 1
+        WHERE license_key = ? AND machine_id IS NULL
+      `);
+      stmt.run(machineId, key);
+
+      return this.findByKey(key);
+    },
+
+    update(id: number, data: Partial<License>): License | undefined {
+      const license = this.findById(id);
+      if (!license) return undefined;
+
+      const updateFields: string[] = [];
+      const values: any = {};
+
+      if (data.is_active !== undefined) {
+        updateFields.push("is_active = @is_active");
+        values.is_active = data.is_active;
+      }
+      if (data.max_activations !== undefined) {
+        updateFields.push("max_activations = @max_activations");
+        values.max_activations = data.max_activations;
+      }
+      if (data.expiration_date !== undefined) {
+        updateFields.push("expiration_date = @expiration_date");
+        values.expiration_date = data.expiration_date;
+      }
+      if (data.machine_id !== undefined) {
+        updateFields.push("machine_id = @machine_id");
+        values.machine_id = data.machine_id;
+      }
+
+      if (updateFields.length === 0) return license;
+
+      values.id = id;
+      const stmt = db.prepare(`UPDATE licenses SET ${updateFields.join(", ")} WHERE id = @id`);
+      stmt.run(values);
+
+      return this.findById(id);
     },
   },
 };

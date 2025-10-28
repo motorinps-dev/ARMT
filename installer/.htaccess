@@ -1,0 +1,26 @@
+# ARMT VPN Installer Protection
+# Защита установщика от прямого скачивания
+
+# Разрешить доступ только с авторизацией
+<Files "install-armt-vpn.sh">
+    # Опционально: требовать basic auth
+    # AuthType Basic
+    # AuthName "License Required"
+    # AuthUserFile /path/to/.htpasswd
+    # Require valid-user
+    
+    # Разрешить только определенные User-Agents
+    SetEnvIf User-Agent "ARMT-Web-Client" allow_download
+    Order deny,allow
+    Deny from all
+    Allow from env=allow_download
+</Files>
+
+# Защита README от публичного доступа
+<Files "README.md">
+    Require all denied
+</Files>
+
+<Files "SECURITY.md">
+    Require all denied
+</Files>
