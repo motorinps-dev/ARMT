@@ -11,6 +11,11 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes
 
 **October 28, 2025**
+- Created installer/download page (`/download`) with support for all major platforms (Windows, macOS, Linux, Android, iOS)
+  - Features platform-specific download cards with version info and file sizes
+  - Includes step-by-step installation instructions for each platform
+  - Added "Скачать" (Download) link to main navigation menu
+  - Fully responsive design with dark mode support
 - Fixed critical bug in `telegram_bot.py`: Changed `range(53)` to `range(46)` to match the actual number of state constants (46 variables). This resolves the "ValueError: too many values to unpack" error that prevented the Telegram bot from starting.
 - Created `PRODUCTION_FIX.md` with comprehensive deployment troubleshooting instructions for vip.armt.su:4443.
 

@@ -38,6 +38,11 @@ export default function Landing() {
               <a href="#pricing" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 Цены
               </a>
+              <Link href="/download" data-testid="link-download">
+                <span className="text-sm text-muted-foreground hover:text-primary transition-colors cursor-pointer">
+                  Скачать
+                </span>
+              </Link>
               <a href="#contacts" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 Контакты
               </a>
