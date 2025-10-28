@@ -6,6 +6,9 @@ import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 
+// Trust proxy для работы за Nginx
+app.set('trust proxy', 1);
+
 const MemoryStoreSession = MemoryStore(session);
 
 app.use(
@@ -17,7 +20,8 @@ app.use(
       checkPeriod: 86400000,
     }),
     cookie: {
-      secure: process.env.NODE_ENV === "production",
+      // Secure только если реально HTTPS (req.secure будет true если прокси передает X-Forwarded-Proto: https)
+      secure: process.env.NODE_ENV === "production" && process.env.HTTPS_PORT !== undefined,
       httpOnly: true,
       maxAge: 1000 * 60 * 60 * 24 * 7,
       sameSite: "lax",

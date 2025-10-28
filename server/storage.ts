@@ -232,6 +232,37 @@ if (defaultBotSettings.count === 0) {
   console.log("Default bot settings initialized");
 }
 
+// Создание дефолтного администратора
+import bcrypt from "bcrypt";
+
+const checkDefaultAdmin = async () => {
+  try {
+    const existingOwner = db.prepare("SELECT * FROM users WHERE email = ?").get('owner@armt.su') as User | undefined;
+    
+    if (!existingOwner) {
+      const defaultPassword = await bcrypt.hash('admin123', 10);
+      db.prepare(
+        "INSERT INTO users (email, password, nickname, is_admin, main_balance, referral_balance) VALUES (?, ?, ?, ?, ?, ?)"
+      ).run('owner@armt.su', defaultPassword, 'Owner', 1, 0, 0);
+      console.log("✅ Default admin created: owner@armt.su / admin123");
+    }
+    
+    const existingAdmin = db.prepare("SELECT * FROM users WHERE email = ?").get('admin@armt.su') as User | undefined;
+    
+    if (!existingAdmin) {
+      const defaultPassword = await bcrypt.hash('admin123', 10);
+      db.prepare(
+        "INSERT INTO users (email, password, nickname, is_admin, main_balance, referral_balance) VALUES (?, ?, ?, ?, ?, ?)"
+      ).run('admin@armt.su', defaultPassword, 'Admin', 1, 0, 0);
+      console.log("✅ Default admin created: admin@armt.su / admin123");
+    }
+  } catch (error) {
+    console.error("Error creating default admin:", error);
+  }
+};
+
+checkDefaultAdmin();
+
 export interface IStorage {
   users: {
     create(user: InsertUser): User;

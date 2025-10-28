@@ -141,8 +141,16 @@ export function registerRoutes(app: Express): Server {
 
       req.session.userId = user.id;
       
-      const { password, ...userWithoutPassword } = user;
-      res.json({ user: userWithoutPassword });
+      // Явно сохраняем сессию для надежности
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+          return res.status(500).json({ message: "Ошибка сохранения сессии" });
+        }
+        
+        const { password, ...userWithoutPassword } = user;
+        res.json({ user: userWithoutPassword });
+      });
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Ошибка входа" });
     }
