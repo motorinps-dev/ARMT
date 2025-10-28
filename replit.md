@@ -8,6 +8,18 @@ The ARMT VPN Platform is a full-stack application designed for managing VPN serv
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+**October 28, 2025**
+- Fixed critical bug in `telegram_bot.py`: Changed `range(53)` to `range(46)` to match the actual number of state constants (46 variables). This resolves the "ValueError: too many values to unpack" error that prevented the Telegram bot from starting.
+- Created `PRODUCTION_FIX.md` with comprehensive deployment troubleshooting instructions for vip.armt.su:4443.
+
+## Known Issues
+
+**Production Deployment Issues (vip.armt.su)**
+1. **Telegram Bot**: Fixed in repository - needs server update (see PRODUCTION_FIX.md)
+2. **Website Access**: May require firewall/nginx configuration on server (see PRODUCTION_FIX.md)
+
 ## System Architecture
 
 ### Frontend
