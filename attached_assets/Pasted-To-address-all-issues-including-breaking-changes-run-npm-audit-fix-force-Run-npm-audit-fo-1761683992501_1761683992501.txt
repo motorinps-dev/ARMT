@@ -1,0 +1,50 @@
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+[2025-10-28 21:39:11] ✓ Node.js зависимости установлены
+[2025-10-28 21:39:11] Инициализация базы данных...
+[WARNING] База данных уже существует
+[2025-10-28 21:39:11] ✓ Резервная копия БД создана: vpn_platform_backup_20251028_213911.db
+[2025-10-28 21:39:11] ✓ База данных готова
+[2025-10-28 21:39:11] Сборка приложения...
+[INFO] Компиляция TypeScript и сборка фронтенда...
+
+> rest-express@1.0.0 build
+> vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+
+vite v5.4.20 building for production...
+transforming...
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 1747 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/public/index.html                   2.25 kB │ gzip:   1.02 kB
+../dist/public/assets/index-Ca0zZC0m.css   76.64 kB │ gzip:  12.32 kB
+../dist/public/assets/index-CYScEYak.js   592.17 kB │ gzip: 172.39 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 8.18s
+
+  dist/index.js  86.8kb
+
+⚡ Done in 11ms
+[2025-10-28 21:39:20] ✓ Приложение собрано
+[2025-10-28 21:39:20] Создание systemd сервисов...
+[2025-10-28 21:39:20] ✓ Systemd сервисы созданы
+[2025-10-28 21:39:20] Настройка Nginx...
+[2025-10-28 21:39:20] ✓ Nginx конфигурация создана
+[2025-10-28 21:39:20] Создание SSL сертификатов для порта 8443...
+[INFO] Найдены существующие сертификаты Let's Encrypt
+[2025-10-28 21:39:20] ✓ Используются сертификаты Let's Encrypt
+nginx: [emerg] "location" directive is not allowed here in /etc/nginx/nginx.conf:84
+nginx: configuration file /etc/nginx/nginx.conf test failed
+[WARNING] Произошла ошибка во время установки
+[WARNING] Логи сохранены в: /var/log/armt-vpn-install.log
+[WARNING] Директория установки: /opt/armt-vpn
+[WARNING] Вы можете удалить её и попробовать снова
+root@punchydesk:~# 

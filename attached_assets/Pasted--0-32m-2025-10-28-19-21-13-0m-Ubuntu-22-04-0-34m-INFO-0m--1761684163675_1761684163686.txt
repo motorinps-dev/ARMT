@@ -1,0 +1,207 @@
+#[0;32m[2025-10-28 19:21:13]#[0m ✓ Обнаружена ОС: Ubuntu 22.04
+#[0;34m[INFO]#[0m Проверка интернет-соединения...
+#[0;32m[2025-10-28 19:21:13]#[0m ✓ Интернет-соединение активно
+#[0;32m[2025-10-28 19:21:13]#[0m Начало установки ARMT VPN Platform
+#[0;32m[2025-10-28 19:21:13]#[0m Установка системных зависимостей...
+#[0;32m[2025-10-28 19:21:29]#[0m ✓ Системные зависимости установлены
+#[0;32m[2025-10-28 19:21:29]#[0m Установка Node.js 20...
+#[0;34m[INFO]#[0m Node.js уже установлен: v12.22.9
+#[1;33m[WARNING]#[0m Обнаружена старая версия Node.js
+#[0;32m[2025-10-28 19:22:04]#[0m Домен: sweden2.armt.su
+#[0;34m[INFO]#[0m Для стандартной установки используйте порт 443
+#[0;34m[INFO]#[0m Для vip.armt.su используйте порт 4443
+#[0;32m[2025-10-28 19:22:14]#[0m HTTPS порт: 8443
+#[0;34m[INFO]#[0m Создайте бота через @BotFather в Telegram
+#[0;34m[INFO]#[0m Получите ваш Telegram ID через @userinfobot
+#[0;34m[INFO]#[0m CryptoBot используется для приёма платежей в криптовалюте
+#[0;32m[2025-10-28 19:24:36]#[0m ✓ Сгенерирован SESSION_SECRET
+#[0;32m[2025-10-28 19:24:44]#[0m ✓ Все переменные окружения собраны
+#[0;32m[2025-10-28 19:24:44]#[0m Клонирование репозитория с GitHub...
+#[0;32m[2025-10-28 19:24:45]#[0m ✓ Репозиторий склонирован в /opt/armt-vpn
+#[0;32m[2025-10-28 19:24:45]#[0m Создание .env файла...
+#[0;32m[2025-10-28 19:24:45]#[0m ✓ .env файл создан и защищён
+#[0;32m[2025-10-28 19:24:45]#[0m Установка Python зависимостей для Telegram бота...
+#[0;32m[2025-10-28 19:24:55]#[0m ✓ Python зависимости установлены
+#[0;32m[2025-10-28 19:24:55]#[0m Установка Node.js зависимостей...
+#[0;34m[INFO]#[0m Это может занять несколько минут...
+#[0;32m[2025-10-28 19:32:25]#[0m ✓ Обнаружена ОС: Ubuntu 22.04
+#[0;34m[INFO]#[0m Проверка интернет-соединения...
+#[0;32m[2025-10-28 19:32:25]#[0m ✓ Интернет-соединение активно
+#[0;32m[2025-10-28 19:32:25]#[0m Начало установки ARMT VPN Platform
+#[0;32m[2025-10-28 19:32:25]#[0m Установка системных зависимостей...
+#[0;32m[2025-10-28 19:32:28]#[0m ✓ Системные зависимости установлены
+#[0;32m[2025-10-28 19:32:28]#[0m Установка Node.js 20...
+#[0;34m[INFO]#[0m Node.js уже установлен: v12.22.9
+#[1;33m[WARNING]#[0m Обнаружена старая версия Node.js
+#[0;32m[2025-10-28 19:33:33]#[0m ✓ Обнаружена ОС: Ubuntu 22.04
+#[0;34m[INFO]#[0m Проверка интернет-соединения...
+#[0;32m[2025-10-28 19:33:33]#[0m ✓ Интернет-соединение активно
+#[0;32m[2025-10-28 19:33:33]#[0m Начало установки ARMT VPN Platform
+#[0;32m[2025-10-28 19:33:33]#[0m Установка системных зависимостей...
+#[0;32m[2025-10-28 19:33:38]#[0m ✓ Системные зависимости установлены
+#[0;32m[2025-10-28 19:33:38]#[0m Установка Node.js 20...
+#[0;34m[INFO]#[0m Node.js уже установлен: v12.22.9
+#[1;33m[WARNING]#[0m Обнаружена старая версия Node.js
+#[0;32m[2025-10-28 21:29:33]#[0m ✓ Обнаружена ОС: Ubuntu 22.04
+#[0;34m[INFO]#[0m Проверка интернет-соединения...
+#[0;32m[2025-10-28 21:29:33]#[0m ✓ Интернет-соединение активно
+#[0;32m[2025-10-28 21:29:33]#[0m Начало установки ARMT VPN Platform
+#[0;32m[2025-10-28 21:29:33]#[0m Установка системных зависимостей...
+#[0;32m[2025-10-28 21:29:38]#[0m ✓ Системные зависимости установлены
+#[0;32m[2025-10-28 21:29:38]#[0m Установка Node.js 20...
+#[0;34m[INFO]#[0m Node.js уже установлен: v12.22.9
+#[1;33m[WARNING]#[0m Обнаружена старая версия Node.js
+#[0;32m[2025-10-28 21:31:07]#[0m ✓ Обнаружена ОС: Ubuntu 22.04
+#[0;34m[INFO]#[0m Проверка интернет-соединения...
+#[0;32m[2025-10-28 21:31:07]#[0m ✓ Интернет-соединение активно
+#[0;32m[2025-10-28 21:31:07]#[0m Начало установки ARMT VPN Platform
+#[0;32m[2025-10-28 21:31:07]#[0m Установка системных зависимостей...
+#[0;32m[2025-10-28 21:31:12]#[0m ✓ Системные зависимости установлены
+#[0;32m[2025-10-28 21:31:12]#[0m Установка Node.js 20...
+#[0;34m[INFO]#[0m Node.js уже установлен: v12.22.9
+#[1;33m[WARNING]#[0m Обнаружена старая версия Node.js: v12.22.9
+#[0;34m[INFO]#[0m Автоматическое обновление до Node.js 20...
+#[0;34m[INFO]#[0m Загрузка и установка Node.js 20 из NodeSource...
+#[0;31m[ERROR]#[0m Не удалось установить Node.js. Проверьте подключение к интернету.
+#[0;32m[2025-10-28 21:31:50]#[0m ✓ Обнаружена ОС: Ubuntu 22.04
+#[0;34m[INFO]#[0m Проверка интернет-соединения...
+#[0;32m[2025-10-28 21:31:50]#[0m ✓ Интернет-соединение активно
+#[0;32m[2025-10-28 21:31:50]#[0m Начало установки ARMT VPN Platform
+#[0;32m[2025-10-28 21:31:50]#[0m Установка системных зависимостей...
+#[0;32m[2025-10-28 21:31:54]#[0m ✓ Системные зависимости установлены
+#[0;32m[2025-10-28 21:31:54]#[0m Установка Node.js 20...
+#[0;34m[INFO]#[0m Загрузка и установка Node.js 20 из NodeSource...
+#[0;31m[ERROR]#[0m Не удалось установить Node.js. Проверьте подключение к интернету.
+#[0;32m[2025-10-28 21:35:15]#[0m ✓ Обнаружена ОС: Ubuntu 22.04
+#[0;34m[INFO]#[0m Проверка интернет-соединения...
+#[0;32m[2025-10-28 21:35:15]#[0m ✓ Интернет-соединение активно
+#[0;32m[2025-10-28 21:35:15]#[0m Начало установки ARMT VPN Platform
+#[0;32m[2025-10-28 21:35:15]#[0m Установка системных зависимостей...
+#[0;32m[2025-10-28 21:35:20]#[0m ✓ Системные зависимости установлены
+#[0;32m[2025-10-28 21:35:20]#[0m Установка Node.js 20...
+#[0;34m[INFO]#[0m Полное удаление старых версий Node.js и связанных пакетов...
+#[0;34m[INFO]#[0m Загрузка и установка Node.js 20 из NodeSource...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following NEW packages will be installed:
+  nodejs
+0 upgraded, 1 newly installed, 0 to remove and 8 not upgraded.
+Need to get 0 B/32.0 MB of archives.
+After this operation, 197 MB of additional disk space will be used.
+(Reading database ... 
+(Reading database ... 5%
+(Reading database ... 10%
+(Reading database ... 15%
+(Reading database ... 20%
+(Reading database ... 25%
+(Reading database ... 30%
+(Reading database ... 35%
+(Reading database ... 40%
+(Reading database ... 45%
+(Reading database ... 50%
+(Reading database ... 55%
+(Reading database ... 60%
+(Reading database ... 65%
+(Reading database ... 70%
+(Reading database ... 75%
+(Reading database ... 80%
+(Reading database ... 85%
+(Reading database ... 90%
+(Reading database ... 95%
+(Reading database ... 100%
+(Reading database ... 83479 files and directories currently installed.)
+Preparing to unpack .../nodejs_20.19.5-1nodesource1_amd64.deb ...
+Unpacking nodejs (20.19.5-1nodesource1) ...
+Setting up nodejs (20.19.5-1nodesource1) ...
+Processing triggers for man-db (2.10.2-1) ...
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+#[0;32m[2025-10-28 21:35:59]#[0m ✓ Node.js установлен: v20.19.5
+#[0;32m[2025-10-28 21:35:59]#[0m ✓ NPM установлен: 10.8.2
+#[0;32m[2025-10-28 21:36:21]#[0m Домен: sweden2.armt.su
+#[0;34m[INFO]#[0m Для стандартной установки используйте порт 443
+#[0;34m[INFO]#[0m Для vip.armt.su используйте порт 4443
+#[0;32m[2025-10-28 21:36:34]#[0m HTTPS порт: 8443
+#[0;34m[INFO]#[0m Создайте бота через @BotFather в Telegram
+#[0;34m[INFO]#[0m Получите ваш Telegram ID через @userinfobot
+#[0;34m[INFO]#[0m CryptoBot используется для приёма платежей в криптовалюте
+#[0;32m[2025-10-28 21:38:42]#[0m ✓ Сгенерирован SESSION_SECRET
+#[0;32m[2025-10-28 21:38:49]#[0m ✓ Все переменные окружения собраны
+#[0;32m[2025-10-28 21:38:49]#[0m Клонирование репозитория с GitHub...
+#[1;33m[WARNING]#[0m Директория /opt/armt-vpn уже существует
+#[0;34m[INFO]#[0m Создание резервной копии в /opt/armt-vpn_backup_20251028_213849...
+#[0;32m[2025-10-28 21:38:49]#[0m ✓ Резервная копия создана
+#[0;32m[2025-10-28 21:38:50]#[0m ✓ Репозиторий склонирован в /opt/armt-vpn
+#[0;32m[2025-10-28 21:38:50]#[0m Создание .env файла...
+#[0;32m[2025-10-28 21:38:50]#[0m ✓ .env файл создан и защищён
+#[0;32m[2025-10-28 21:38:50]#[0m Установка Python зависимостей для Telegram бота...
+#[0;32m[2025-10-28 21:38:58]#[0m ✓ Python зависимости установлены
+#[0;32m[2025-10-28 21:38:59]#[0m Установка Node.js зависимостей...
+#[0;34m[INFO]#[0m Это может занять несколько минут...
+
+added 517 packages, and audited 518 packages in 13s
+
+72 packages are looking for funding
+  run `npm fund` for details
+
+8 vulnerabilities (3 low, 5 moderate)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+#[0;32m[2025-10-28 21:39:11]#[0m ✓ Node.js зависимости установлены
+#[0;32m[2025-10-28 21:39:11]#[0m Инициализация базы данных...
+#[1;33m[WARNING]#[0m База данных уже существует
+#[0;32m[2025-10-28 21:39:11]#[0m ✓ Резервная копия БД создана: vpn_platform_backup_20251028_213911.db
+#[0;32m[2025-10-28 21:39:11]#[0m ✓ База данных готова
+#[0;32m[2025-10-28 21:39:11]#[0m Сборка приложения...
+#[0;34m[INFO]#[0m Компиляция TypeScript и сборка фронтенда...
+
+> rest-express@1.0.0 build
+> vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+
+vite v5.4.20 building for production...
+transforming...
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 1747 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/public/index.html                   2.25 kB │ gzip:   1.02 kB
+../dist/public/assets/index-Ca0zZC0m.css   76.64 kB │ gzip:  12.32 kB
+../dist/public/assets/index-CYScEYak.js   592.17 kB │ gzip: 172.39 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 8.18s
+
+  dist/index.js  86.8kb
+
+⚡ Done in 11ms
+#[0;32m[2025-10-28 21:39:20]#[0m ✓ Приложение собрано
+#[0;32m[2025-10-28 21:39:20]#[0m Создание systemd сервисов...
+#[0;32m[2025-10-28 21:39:20]#[0m ✓ Systemd сервисы созданы
+#[0;32m[2025-10-28 21:39:20]#[0m Настройка Nginx...
+#[0;32m[2025-10-28 21:39:20]#[0m ✓ Nginx конфигурация создана
+#[0;32m[2025-10-28 21:39:20]#[0m Создание SSL сертификатов для порта 8443...
+#[0;34m[INFO]#[0m Найдены существующие сертификаты Let's Encrypt
+#[0;32m[2025-10-28 21:39:20]#[0m ✓ Используются сертификаты Let's Encrypt
+#[1;33m[WARNING]#[0m Произошла ошибка во время установки
+#[1;33m[WARNING]#[0m Логи сохранены в: /var/log/armt-vpn-install.log
+#[1;33m[WARNING]#[0m Директория установки: /opt/armt-vpn
+#[1;33m[WARNING]#[0m Вы можете удалить её и попробовать снова

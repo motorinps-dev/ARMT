@@ -430,68 +430,72 @@ configure_nginx() {
     log "Настройка Nginx..."
 
     rm -f /etc/nginx/sites-enabled/default
+    rm -f /etc/nginx/sites-enabled/armt-vpn
 
     if [ "$HTTPS_PORT" == "443" ]; then
-        cat > "/etc/nginx/sites-available/armt-vpn" <<EOF
+        cat > "/etc/nginx/sites-available/armt-vpn" <<'EOF'
 server {
     listen 80;
-    server_name $DOMAIN;
-    return 301 https://\$server_name\$request_uri;
+    server_name DOMAIN_PLACEHOLDER;
+    return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name $DOMAIN;
+    server_name DOMAIN_PLACEHOLDER;
     
     location / {
-        proxy_pass http://localhost:$WEB_PORT;
+        proxy_pass http://localhost:PORT_PLACEHOLDER;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
     }
 }
 EOF
+        sed -i "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" /etc/nginx/sites-available/armt-vpn
+        sed -i "s/PORT_PLACEHOLDER/$WEB_PORT/g" /etc/nginx/sites-available/armt-vpn
     else
         mkdir -p /etc/nginx/ssl/$DOMAIN
         
-        cat > "/etc/nginx/sites-available/armt-vpn" <<EOF
+        cat > "/etc/nginx/sites-available/armt-vpn" <<'EOF'
 server {
     listen 80;
-    server_name $DOMAIN;
-    return 301 https://\$server_name:$HTTPS_PORT\$request_uri;
+    server_name DOMAIN_PLACEHOLDER;
+    return 301 https://$server_name:HTTPS_PORT_PLACEHOLDER$request_uri;
 }
 
 server {
-    listen $HTTPS_PORT ssl http2;
-    server_name $DOMAIN;
+    listen HTTPS_PORT_PLACEHOLDER ssl http2;
+    server_name DOMAIN_PLACEHOLDER;
 
-    ssl_certificate /etc/nginx/ssl/$DOMAIN/fullchain.pem;
-    ssl_certificate_key /etc/nginx/ssl/$DOMAIN/privkey.pem;
+    ssl_certificate /etc/nginx/ssl/DOMAIN_PLACEHOLDER/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/DOMAIN_PLACEHOLDER/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_prefer_server_ciphers on;
 
     location / {
-        proxy_pass http://localhost:$WEB_PORT;
+        proxy_pass http://localhost:PORT_PLACEHOLDER;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
     }
 }
 EOF
+        sed -i "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" /etc/nginx/sites-available/armt-vpn
+        sed -i "s/PORT_PLACEHOLDER/$WEB_PORT/g" /etc/nginx/sites-available/armt-vpn
+        sed -i "s/HTTPS_PORT_PLACEHOLDER/$HTTPS_PORT/g" /etc/nginx/sites-available/armt-vpn
     fi
-
-    ln -sf /etc/nginx/sites-available/armt-vpn /etc/nginx/sites-enabled/
 
     log "✓ Nginx конфигурация создана"
 }
@@ -500,7 +504,7 @@ setup_ssl() {
     if [[ $USE_SSL =~ ^[Yy]$ ]] && [ "$HTTPS_PORT" == "443" ]; then
         log "Установка SSL сертификатов через Let's Encrypt..."
         
-        nginx -t && systemctl restart nginx
+        systemctl restart nginx
         
         certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m $SSL_EMAIL
         
@@ -524,11 +528,27 @@ setup_ssl() {
             warn "Используется самоподписанный сертификат!"
             log "✓ Самоподписанный сертификат создан"
         fi
+        
+        ln -sf /etc/nginx/sites-available/armt-vpn /etc/nginx/sites-enabled/
+        
+        if nginx -t 2>&1; then
+            systemctl restart nginx
+            log "✓ Nginx перезапущен с новой конфигурацией"
+        else
+            error "Ошибка в конфигурации Nginx. Проверьте файл: /etc/nginx/sites-available/armt-vpn"
+        fi
     else
         warn "SSL сертификаты не установлены. Сайт будет работать по HTTP"
+        
+        ln -sf /etc/nginx/sites-available/armt-vpn /etc/nginx/sites-enabled/
+        
+        if nginx -t 2>&1; then
+            systemctl restart nginx
+            log "✓ Nginx перезапущен"
+        else
+            error "Ошибка в конфигурации Nginx"
+        fi
     fi
-    
-    nginx -t && systemctl restart nginx
 }
 
 configure_firewall() {
