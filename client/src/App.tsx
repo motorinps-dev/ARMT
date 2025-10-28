@@ -10,14 +10,12 @@ import Register from "@/pages/register";
 import Dashboard from "@/pages/dashboard";
 import Admin from "@/pages/admin";
 import Verify2FAPage from "@/pages/verify-2fa";
-import Installer from "@/pages/installer";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
-      <Route path="/download" component={Installer} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/verify-2fa" component={Verify2FAPage} />
