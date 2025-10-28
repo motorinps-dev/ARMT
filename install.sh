@@ -12,6 +12,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 log() {
@@ -32,17 +33,20 @@ info() {
 }
 
 print_header() {
+    clear
     echo ""
-    echo -e "${BLUE}╔═══════════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║       ARMT VPN Platform Installation Script      ║${NC}"
-    echo -e "${BLUE}║                  Ubuntu 22.04+                    ║${NC}"
-    echo -e "${BLUE}╚═══════════════════════════════════════════════════╝${NC}"
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║                                                   ║${NC}"
+    echo -e "${CYAN}║       ${GREEN}ARMT VPN Platform Installer${CYAN}              ║${NC}"
+    echo -e "${CYAN}║              ${YELLOW}Ubuntu 22.04 / 24.04${CYAN}                  ║${NC}"
+    echo -e "${CYAN}║                                                   ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════╝${NC}"
     echo ""
 }
 
 check_root() {
     if [ "$EUID" -ne 0 ]; then
-        error "Этот скрипт требует прав суперпользователя. Пожалуйста, запустите с sudo."
+        error "Этот скрипт требует прав суперпользователя. Запустите: sudo bash install.sh"
     fi
 }
 
@@ -50,20 +54,35 @@ check_ubuntu() {
     if [ ! -f /etc/os-release ]; then
         error "Невозможно определить операционную систему"
     fi
-    
+
     . /etc/os-release
     if [ "$ID" != "ubuntu" ]; then
         error "Этот скрипт предназначен только для Ubuntu"
     fi
+
+    VERSION_MAJOR=$(echo "$VERSION_ID" | cut -d. -f1)
+    if [ "$VERSION_MAJOR" -lt 22 ]; then
+        error "Требуется Ubuntu 22.04 или новее. Обнаружена версия: $VERSION_ID"
+    fi
+
+    log "✓ Обнаружена ОС: Ubuntu $VERSION_ID"
+}
+
+check_network() {
+    info "Проверка интернет-соединения..."
     
-    log "Обнаружена ОС: Ubuntu $VERSION_ID"
+    if ! ping -c 1 -W 2 8.8.8.8 &> /dev/null; then
+        error "Нет интернет-соединения. Проверьте сеть и попробуйте снова."
+    fi
+    
+    log "✓ Интернет-соединение активно"
 }
 
 install_system_dependencies() {
     log "Установка системных зависимостей..."
-    
-    apt-get update
-    apt-get install -y \
+
+    apt-get update -qq
+    apt-get install -y -qq \
         curl \
         wget \
         git \
@@ -76,106 +95,159 @@ install_system_dependencies() {
         certbot \
         python3-certbot-nginx \
         ufw \
-        openssl
-    
-    log "Системные зависимости установлены"
+        openssl \
+        net-tools 2>&1 | grep -v "^$" || true
+
+    log "✓ Системные зависимости установлены"
 }
 
 install_nodejs() {
     log "Установка Node.js 20..."
-    
+
     if command -v node &> /dev/null; then
         NODE_VERSION=$(node --version)
-        log "Node.js уже установлен: $NODE_VERSION"
-        read -p "Переустановить Node.js? (y/n): " -n 1 -r
+        info "Node.js уже установлен: $NODE_VERSION"
+        
+        if [[ "$NODE_VERSION" == v20* ]]; then
+            log "✓ Node.js 20 уже установлен"
+            return
+        fi
+        
+        warn "Обнаружена старая версия Node.js"
+        read -p "Обновить до Node.js 20? (y/n): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             return
         fi
     fi
-    
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-    apt-get install -y nodejs
-    
+
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - > /dev/null 2>&1
+    apt-get install -y nodejs > /dev/null 2>&1
+
     NODE_VERSION=$(node --version)
     NPM_VERSION=$(npm --version)
-    log "Node.js установлен: $NODE_VERSION"
-    log "NPM установлен: $NPM_VERSION"
+    log "✓ Node.js установлен: $NODE_VERSION"
+    log "✓ NPM установлен: $NPM_VERSION"
 }
 
 collect_env_variables() {
-    log "Сбор переменных окружения..."
+    echo ""
+    echo -e "${CYAN}═══════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}  Настройка переменных окружения${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════${NC}"
+    echo ""
     
-    read -p "Введите домен для установки (например, vip.armt.su): " DOMAIN
-    if [ -z "$DOMAIN" ]; then
-        error "Домен обязателен для установки"
-    fi
+    # Домен
+    while true; do
+        read -p "$(echo -e ${BLUE}→${NC}) Введите домен (например, vip.armt.su): " DOMAIN
+        if [ -n "$DOMAIN" ]; then
+            break
+        fi
+        warn "Домен обязателен!"
+    done
+    log "Домен: $DOMAIN"
     
-    read -p "Использовать SSL сертификаты Let's Encrypt? (y/n): " -n 1 -r USE_SSL
+    # HTTPS порт
+    echo ""
+    info "Для стандартной установки используйте порт 443"
+    info "Для vip.armt.su используйте порт 4443"
+    read -p "$(echo -e ${BLUE}→${NC}) HTTPS порт [443]: " HTTPS_PORT
+    HTTPS_PORT=${HTTPS_PORT:-443}
+    log "HTTPS порт: $HTTPS_PORT"
+    
+    # SSL
+    echo ""
+    read -p "$(echo -e ${BLUE}→${NC}) Установить SSL сертификаты Let's Encrypt? (y/n): " -n 1 -r USE_SSL
     echo
     
     if [[ $USE_SSL =~ ^[Yy]$ ]]; then
-        read -p "Введите email для Let's Encrypt: " SSL_EMAIL
+        read -p "$(echo -e ${BLUE}→${NC}) Email для Let's Encrypt: " SSL_EMAIL
         if [ -z "$SSL_EMAIL" ]; then
-            warn "Email не указан. Сертификаты не будут установлены."
+            warn "Email не указан. Будет использован самоподписанный сертификат"
             USE_SSL="n"
+        else
+            log "SSL Email: $SSL_EMAIL"
         fi
     fi
     
-    read -p "HTTPS порт (по умолчанию 443, для vip.armt.su используйте 4443): " HTTPS_PORT
-    HTTPS_PORT=${HTTPS_PORT:-443}
+    # Telegram Bot Token
+    echo ""
+    echo -e "${YELLOW}Telegram Bot Configuration${NC}"
+    info "Создайте бота через @BotFather в Telegram"
+    while true; do
+        read -p "$(echo -e ${BLUE}→${NC}) Telegram Bot Token: " TELEGRAM_BOT_TOKEN
+        if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
+            break
+        fi
+        warn "Bot Token обязателен!"
+    done
     
-    read -p "Telegram Bot Token: " TELEGRAM_BOT_TOKEN
-    if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
-        warn "Telegram Bot Token не указан. Бот не будет работать без токена."
-    fi
+    # Admin IDs
+    echo ""
+    info "Получите ваш Telegram ID через @userinfobot"
+    while true; do
+        read -p "$(echo -e ${BLUE}→${NC}) Admin Telegram ID (можно несколько через запятую): " ADMIN_IDS
+        if [ -n "$ADMIN_IDS" ]; then
+            break
+        fi
+        warn "Хотя бы один Admin ID обязателен!"
+    done
     
-    read -p "Admin Telegram IDs (через запятую): " ADMIN_IDS
-    if [ -z "$ADMIN_IDS" ]; then
-        warn "Admin IDs не указаны. Укажите хотя бы один ID администратора."
-    fi
+    # Group ID (опционально)
+    echo ""
+    read -p "$(echo -e ${BLUE}→${NC}) Group ID для поддержки [пусто = пропустить]: " GROUP_ID
+    GROUP_ID=${GROUP_ID:-}
     
-    read -p "Group ID для поддержки (опционально, Enter чтобы пропустить): " GROUP_ID
-    read -p "CryptoBot Token (опционально, Enter чтобы пропустить): " CRYPTO_BOT_TOKEN
+    # CryptoBot Token (опционально)
+    echo ""
+    info "CryptoBot используется для приёма платежей в криптовалюте"
+    read -p "$(echo -e ${BLUE}→${NC}) CryptoBot Token [пусто = пропустить]: " CRYPTO_BOT_TOKEN
+    CRYPTO_BOT_TOKEN=${CRYPTO_BOT_TOKEN:-}
     
-    read -p "SESSION_SECRET (оставьте пустым для автогенерации): " SESSION_SECRET
+    # Session Secret
+    echo ""
+    read -p "$(echo -e ${BLUE}→${NC}) SESSION_SECRET [Enter = автогенерация]: " SESSION_SECRET
     if [ -z "$SESSION_SECRET" ]; then
         SESSION_SECRET=$(openssl rand -hex 32)
-        log "Сгенерирован SESSION_SECRET: ${SESSION_SECRET:0:16}..."
+        log "✓ Сгенерирован SESSION_SECRET"
     fi
     
-    read -p "Порт для Node.js приложения (по умолчанию 5000): " WEB_PORT
+    # Web Port
+    echo ""
+    read -p "$(echo -e ${BLUE}→${NC}) Внутренний порт для Node.js [5000]: " WEB_PORT
     WEB_PORT=${WEB_PORT:-5000}
     
-    log "Переменные окружения собраны"
+    echo ""
+    log "✓ Все переменные окружения собраны"
 }
 
 clone_repository() {
-    log "Клонирование репозитория из $GITHUB_REPO..."
-    
+    log "Клонирование репозитория с GitHub..."
+
     if [ -d "$INSTALL_DIR" ]; then
         warn "Директория $INSTALL_DIR уже существует"
-        read -p "Удалить существующую установку? (y/n): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        
+        if systemctl is-active --quiet $WEB_SERVICE || systemctl is-active --quiet $BOT_SERVICE; then
+            info "Остановка запущенных сервисов..."
             systemctl stop $BOT_SERVICE 2>/dev/null || true
             systemctl stop $WEB_SERVICE 2>/dev/null || true
-            rm -rf "$INSTALL_DIR"
-            log "Существующая установка удалена"
-        else
-            error "Установка прервана"
         fi
+        
+        BACKUP_DIR="${INSTALL_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
+        info "Создание резервной копии в $BACKUP_DIR..."
+        mv "$INSTALL_DIR" "$BACKUP_DIR"
+        log "✓ Резервная копия создана"
     fi
-    
-    git clone "$GITHUB_REPO" "$INSTALL_DIR"
+
+    git clone -q "$GITHUB_REPO" "$INSTALL_DIR"
     cd "$INSTALL_DIR"
-    
-    log "Репозиторий склонирован в $INSTALL_DIR"
+
+    log "✓ Репозиторий склонирован в $INSTALL_DIR"
 }
 
 create_env_file() {
     log "Создание .env файла..."
-    
+
     cat > "$INSTALL_DIR/.env" <<EOF
 # Telegram Bot Configuration
 TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
@@ -204,19 +276,22 @@ PORT=$WEB_PORT
 
 # Domain
 DOMAIN=$DOMAIN
+
+# HTTPS Port
+HTTPS_PORT=$HTTPS_PORT
 EOF
-    
+
     chmod 600 "$INSTALL_DIR/.env"
-    log ".env файл создан"
+    log "✓ .env файл создан и защищён"
 }
 
 install_python_dependencies() {
-    log "Установка Python зависимостей для бота..."
-    
+    log "Установка Python зависимостей для Telegram бота..."
+
     cd "$INSTALL_DIR"
-    
+
     if [ ! -f "requirements.txt" ]; then
-        log "Файл requirements.txt не найден, создание базового списка зависимостей..."
+        warn "Файл requirements.txt не найден, создание..."
         cat > requirements.txt <<EOF
 python-telegram-bot==20.8
 python-dotenv==1.0.0
@@ -225,63 +300,64 @@ qrcode==7.4.2
 pillow==10.1.0
 EOF
     fi
-    
+
     python3 -m venv venv
     source venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
+    pip install --upgrade pip -q
+    pip install -r requirements.txt -q
     deactivate
-    
-    log "Python зависимости установлены"
+
+    log "✓ Python зависимости установлены"
 }
 
 install_nodejs_dependencies() {
     log "Установка Node.js зависимостей..."
-    
+
     cd "$INSTALL_DIR"
-    npm install --production=false
     
-    log "Node.js зависимости установлены"
+    info "Это может занять несколько минут..."
+    npm install --loglevel=error
+
+    log "✓ Node.js зависимости установлены"
 }
 
 initialize_database() {
     log "Инициализация базы данных..."
-    
+
     cd "$INSTALL_DIR"
-    
+
     if [ -f "vpn_platform.db" ]; then
         warn "База данных уже существует"
-        read -p "Создать резервную копию? (y/n): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            BACKUP_NAME="vpn_platform_backup_$(date +%Y%m%d_%H%M%S).db"
-            cp vpn_platform.db "$BACKUP_NAME"
-            log "Резервная копия создана: $BACKUP_NAME"
-        fi
+        BACKUP_NAME="vpn_platform_backup_$(date +%Y%m%d_%H%M%S).db"
+        cp vpn_platform.db "$BACKUP_NAME"
+        log "✓ Резервная копия БД создана: $BACKUP_NAME"
     fi
-    
+
     touch vpn_platform.db
     chmod 666 vpn_platform.db
-    
-    log "База данных инициализирована"
+
+    log "✓ База данных готова"
 }
 
 build_application() {
     log "Сборка приложения..."
-    
+
     cd "$INSTALL_DIR"
-    npm run build
     
-    log "Приложение собрано"
+    info "Компиляция TypeScript и сборка фронтенда..."
+    npm run build
+
+    log "✓ Приложение собрано"
 }
 
 create_systemd_services() {
     log "Создание systemd сервисов..."
-    
+
     cat > "/etc/systemd/system/${BOT_SERVICE}.service" <<EOF
 [Unit]
 Description=ARMT VPN Telegram Bot
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -297,11 +373,12 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 EOF
-    
+
     cat > "/etc/systemd/system/${WEB_SERVICE}.service" <<EOF
 [Unit]
 Description=ARMT VPN Web Application
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -317,20 +394,28 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 EOF
-    
+
     systemctl daemon-reload
-    log "Systemd сервисы созданы"
+    log "✓ Systemd сервисы созданы"
 }
 
 configure_nginx() {
     log "Настройка Nginx..."
-    
+
+    rm -f /etc/nginx/sites-enabled/default
+
     if [ "$HTTPS_PORT" == "443" ]; then
         cat > "/etc/nginx/sites-available/armt-vpn" <<EOF
 server {
     listen 80;
-    server_name $DOMAIN www.$DOMAIN;
+    server_name $DOMAIN;
+    return 301 https://\$server_name\$request_uri;
+}
 
+server {
+    listen 443 ssl http2;
+    server_name $DOMAIN;
+    
     location / {
         proxy_pass http://localhost:$WEB_PORT;
         proxy_http_version 1.1;
@@ -340,11 +425,13 @@ server {
         proxy_cache_bypass \$http_upgrade;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Proto https;
     }
 }
 EOF
     else
+        mkdir -p /etc/nginx/ssl/$DOMAIN
+        
         cat > "/etc/nginx/sites-available/armt-vpn" <<EOF
 server {
     listen 80;
@@ -376,133 +463,169 @@ server {
 }
 EOF
     fi
-    
+
     ln -sf /etc/nginx/sites-available/armt-vpn /etc/nginx/sites-enabled/
-    rm -f /etc/nginx/sites-enabled/default
-    
-    nginx -t
-    systemctl restart nginx
-    
-    log "Nginx настроен"
+
+    log "✓ Nginx конфигурация создана"
 }
 
 setup_ssl() {
-    if [[ $USE_SSL =~ ^[Yy]$ ]]; then
-        log "Установка SSL сертификатов..."
+    if [[ $USE_SSL =~ ^[Yy]$ ]] && [ "$HTTPS_PORT" == "443" ]; then
+        log "Установка SSL сертификатов через Let's Encrypt..."
         
-        if [ "$HTTPS_PORT" == "443" ]; then
-            log "Конфигурация nginx уже создана, запуск certbot..."
-            certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m $SSL_EMAIL
-            log "SSL сертификаты установлены через Let's Encrypt"
+        nginx -t && systemctl restart nginx
+        
+        certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m $SSL_EMAIL
+        
+        log "✓ SSL сертификаты от Let's Encrypt установлены"
+        
+    elif [ "$HTTPS_PORT" != "443" ]; then
+        log "Создание SSL сертификатов для порта $HTTPS_PORT..."
+        
+        if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+            info "Найдены существующие сертификаты Let's Encrypt"
+            ln -sf /etc/letsencrypt/live/$DOMAIN/fullchain.pem /etc/nginx/ssl/$DOMAIN/fullchain.pem
+            ln -sf /etc/letsencrypt/live/$DOMAIN/privkey.pem /etc/nginx/ssl/$DOMAIN/privkey.pem
+            log "✓ Используются сертификаты Let's Encrypt"
         else
-            mkdir -p /etc/nginx/ssl/$DOMAIN
+            info "Создание самоподписанного сертификата..."
+            openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+                -keyout /etc/nginx/ssl/$DOMAIN/privkey.pem \
+                -out /etc/nginx/ssl/$DOMAIN/fullchain.pem \
+                -subj "/C=RU/ST=Moscow/L=Moscow/O=ARMT/OU=VPN/CN=$DOMAIN" 2>/dev/null
             
-            if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
-                log "Найдены существующие сертификаты Let's Encrypt"
-                ln -sf /etc/letsencrypt/live/$DOMAIN/fullchain.pem /etc/nginx/ssl/$DOMAIN/fullchain.pem
-                ln -sf /etc/letsencrypt/live/$DOMAIN/privkey.pem /etc/nginx/ssl/$DOMAIN/privkey.pem
-            else
-                log "Создание самоподписанного сертификата для порта $HTTPS_PORT..."
-                openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-                    -keyout /etc/nginx/ssl/$DOMAIN/privkey.pem \
-                    -out /etc/nginx/ssl/$DOMAIN/fullchain.pem \
-                    -subj "/C=RU/ST=Moscow/L=Moscow/O=ARMT/OU=VPN/CN=$DOMAIN"
-                
-                warn "Используется самоподписанный сертификат. Для продакшена получите настоящий SSL сертификат."
-            fi
-            
-            log "SSL сертификаты настроены для порта $HTTPS_PORT"
+            warn "Используется самоподписанный сертификат!"
+            log "✓ Самоподписанный сертификат создан"
         fi
     else
-        log "SSL сертификаты не установлены. Сайт будет работать по HTTP"
+        warn "SSL сертификаты не установлены. Сайт будет работать по HTTP"
     fi
+    
+    nginx -t && systemctl restart nginx
 }
 
 configure_firewall() {
     log "Настройка файрвола (UFW)..."
+
+    ufw --force reset > /dev/null 2>&1
     
-    ufw --force enable
-    ufw allow 22/tcp
-    ufw allow 80/tcp
-    ufw allow 443/tcp
+    ufw default deny incoming > /dev/null 2>&1
+    ufw default allow outgoing > /dev/null 2>&1
     
+    ufw allow 22/tcp > /dev/null 2>&1
+    ufw allow 80/tcp > /dev/null 2>&1
+    ufw allow 443/tcp > /dev/null 2>&1
+
     if [ "$HTTPS_PORT" != "443" ]; then
-        ufw allow $HTTPS_PORT/tcp
+        ufw allow $HTTPS_PORT/tcp > /dev/null 2>&1
         log "Открыт порт $HTTPS_PORT для HTTPS"
     fi
-    
-    log "Файрвол настроен"
+
+    ufw --force enable > /dev/null 2>&1
+
+    log "✓ Файрвол настроен"
 }
 
 start_services() {
     log "Запуск сервисов..."
+
+    systemctl enable $WEB_SERVICE > /dev/null 2>&1
+    systemctl enable $BOT_SERVICE > /dev/null 2>&1
     
-    systemctl enable $BOT_SERVICE
-    systemctl enable $WEB_SERVICE
     systemctl start $WEB_SERVICE
     systemctl start $BOT_SERVICE
-    
-    sleep 5
-    
+
+    sleep 3
+
     if systemctl is-active --quiet $WEB_SERVICE; then
-        log "✓ Веб-приложение запущено успешно"
+        log "✓ Веб-приложение запущено"
     else
-        warn "✗ Веб-приложение не запустилось. Проверьте: journalctl -u $WEB_SERVICE -n 50"
+        warn "✗ Веб-приложение не запустилось"
+        warn "Проверьте логи: journalctl -u $WEB_SERVICE -n 50"
     fi
-    
+
     if systemctl is-active --quiet $BOT_SERVICE; then
-        log "✓ Telegram бот запущен успешно"
+        log "✓ Telegram бот запущен"
     else
-        warn "✗ Telegram бот не запустился. Проверьте: journalctl -u $BOT_SERVICE -n 50"
+        warn "✗ Telegram бот не запустился"
+        warn "Проверьте логи: journalctl -u $BOT_SERVICE -n 50"
     fi
 }
 
 print_summary() {
     echo ""
     echo -e "${GREEN}╔═══════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║           Установка завершена успешно!           ║${NC}"
+    echo -e "${GREEN}║                                                   ║${NC}"
+    echo -e "${GREEN}║         Установка завершена успешно! ✓           ║${NC}"
+    echo -e "${GREEN}║                                                   ║${NC}"
     echo -e "${GREEN}╚═══════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "${BLUE}Информация об установке:${NC}"
-    echo -e "  Директория: ${GREEN}$INSTALL_DIR${NC}"
-    echo -e "  Домен: ${GREEN}$DOMAIN${NC}"
-    echo -e "  Backend порт: ${GREEN}$WEB_PORT${NC}"
-    echo -e "  HTTPS порт: ${GREEN}$HTTPS_PORT${NC}"
-    if [[ $USE_SSL =~ ^[Yy]$ ]]; then
-        echo -e "  URL: ${GREEN}https://$DOMAIN:$HTTPS_PORT${NC}"
-    else
-        echo -e "  URL: ${GREEN}http://$DOMAIN${NC}"
+    echo -e "${CYAN}📍 Информация о установке:${NC}"
+    echo ""
+    echo -e "   Домен:          https://$DOMAIN:$HTTPS_PORT"
+    echo -e "   Директория:     $INSTALL_DIR"
+    echo -e "   База данных:    $INSTALL_DIR/vpn_platform.db"
+    echo ""
+    echo -e "${CYAN}🔧 Управление сервисами:${NC}"
+    echo ""
+    echo -e "   Веб-приложение:"
+    echo -e "   • systemctl status $WEB_SERVICE"
+    echo -e "   • systemctl restart $WEB_SERVICE"
+    echo -e "   • journalctl -u $WEB_SERVICE -f"
+    echo ""
+    echo -e "   Telegram бот:"
+    echo -e "   • systemctl status $BOT_SERVICE"
+    echo -e "   • systemctl restart $BOT_SERVICE"
+    echo -e "   • journalctl -u $BOT_SERVICE -f"
+    echo ""
+    echo -e "${CYAN}📝 Логи установки:${NC}"
+    echo -e "   $LOG_FILE"
+    echo ""
+    echo -e "${CYAN}🔐 Следующие шаги:${NC}"
+    echo ""
+    echo -e "   1. Откройте https://$DOMAIN:$HTTPS_PORT в браузере"
+    echo -e "   2. Зарегистрируйте аккаунт администратора"
+    echo -e "   3. Настройте тарифы и серверы в панели управления"
+    echo -e "   4. Протестируйте Telegram бота"
+    echo ""
+    echo -e "${YELLOW}⚠️  Важно:${NC}"
+    echo -e "   • Сохраните файл $INSTALL_DIR/.env"
+    echo -e "   • Настройте регулярные бэкапы базы данных"
+    echo -e "   • Установите мониторинг сервисов"
+    echo ""
+    
+    if [ "$HTTPS_PORT" != "443" ]; then
+        echo -e "${YELLOW}⚠️  SSL сертификат:${NC}"
+        if [[ $USE_SSL =~ ^[Nn]$ ]]; then
+            echo -e "   Используется самоподписанный сертификат"
+            echo -e "   Для продакшена получите настоящий SSL"
+        fi
+        echo ""
     fi
-    echo ""
-    echo -e "${BLUE}Сервисы:${NC}"
-    echo -e "  Статус бота: ${GREEN}systemctl status $BOT_SERVICE${NC}"
-    echo -e "  Статус веб-сервера: ${GREEN}systemctl status $WEB_SERVICE${NC}"
-    echo ""
-    echo -e "${BLUE}Управление:${NC}"
-    echo -e "  Логи бота: ${GREEN}journalctl -u $BOT_SERVICE -f${NC}"
-    echo -e "  Логи веб-сервера: ${GREEN}journalctl -u $WEB_SERVICE -f${NC}"
-    echo -e "  Перезапуск: ${GREEN}systemctl restart $WEB_SERVICE${NC}"
-    echo ""
-    echo -e "${BLUE}База данных:${NC}"
-    echo -e "  Путь: ${GREEN}$INSTALL_DIR/vpn_platform.db${NC}"
-    echo ""
-    echo -e "${YELLOW}⚠  Для создания первого администратора используйте:${NC}"
-    echo -e "${GREEN}  node $INSTALL_DIR/add-admin.js${NC}"
-    echo ""
-    echo -e "${BLUE}Логи установки: ${GREEN}$LOG_FILE${NC}"
-    echo ""
+}
+
+cleanup_on_error() {
+    warn "Произошла ошибка во время установки"
+    warn "Логи сохранены в: $LOG_FILE"
+    
+    if [ -d "$INSTALL_DIR" ]; then
+        warn "Директория установки: $INSTALL_DIR"
+        warn "Вы можете удалить её и попробовать снова"
+    fi
 }
 
 main() {
-    print_header
+    trap cleanup_on_error ERR
     
-    log "Начало установки ARMT VPN Platform..."
+    print_header
     
     check_root
     check_ubuntu
+    check_network
     
-    log "Создание лог-файла: $LOG_FILE"
-    touch "$LOG_FILE"
+    echo ""
+    log "Начало установки ARMT VPN Platform"
+    echo ""
     
     install_system_dependencies
     install_nodejs
@@ -514,21 +637,12 @@ main() {
     initialize_database
     build_application
     create_systemd_services
-    
-    if [ "$HTTPS_PORT" == "443" ]; then
-        configure_nginx
-        setup_ssl
-    else
-        setup_ssl
-        configure_nginx
-    fi
-    
+    configure_nginx
+    setup_ssl
     configure_firewall
     start_services
     
     print_summary
-    
-    log "Установка завершена успешно!"
 }
 
 main "$@"
